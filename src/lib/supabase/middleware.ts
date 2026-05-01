@@ -3,7 +3,6 @@ import { NextResponse, type NextRequest } from "next/server"
 import type { Database } from "@/types/database"
 
 export async function updateSession(request: NextRequest) {
-  // Skip auth check if Supabase is not configured yet
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return NextResponse.next({ request })
   }
@@ -31,17 +30,9 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // Refresh session — do not remove, required for Server Components
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const isAuthRoute = request.nextUrl.pathname.startsWith("/login")
-  const isProtectedRoute = !isAuthRoute && !request.nextUrl.pathname.startsWith("/_next")
-
-  if (isProtectedRoute && !user) {
-    const url = request.nextUrl.clone()
-    url.pathname = "/login"
-    return NextResponse.redirect(url)
-  }
+  // Refresh session — required so Server Components always see a valid token.
+  // Auth redirects live in (app)/layout.tsx, not here.
+  await supabase.auth.getUser()
 
   return supabaseResponse
 }

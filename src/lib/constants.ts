@@ -49,3 +49,21 @@ export const BUSINESSES: Business[] = [
     textColor: "white",
   },
 ]
+
+export const BUSINESS_PREFIXES: Record<string, string> = {
+  "b-keim-rewind-marketing":    "RWND",
+  "happily-ever-after-weddings": "HEAW",
+  "remember-when-phone-booth":  "RWPB",
+  "brandon-keim-contract-work": "BKCW",
+  "brandon-keim-legal-work":    "BKLW",
+  "equipment-rental":            "RENT",
+  "keim-time":                   "KTME",
+}
+
+export function getBusinessById(id: string): Business | undefined {
+  return BUSINESSES.find((b) => b.id === id)
+}
+
+export function getBusinessPrefix(id: string): string {
+  return BUSINESS_PREFIXES[id] ?? id.toUpperCase().slice(0, 4)
+}
