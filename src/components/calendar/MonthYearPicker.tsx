@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 const MONTH_NAMES = [
@@ -21,28 +22,47 @@ interface Props {
 
 export function MonthYearPicker({ open, anchorDate, onSelect, onClose }: Props) {
   const yearRef = useRef<HTMLDivElement>(null)
-  const selectedYear = anchorDate.getFullYear()
-  const selectedMonth = anchorDate.getMonth()
 
+  // Internal state — year selection only highlights until month is tapped or Done
+  const [pendingYear, setPendingYear] = useState(anchorDate.getFullYear())
+  const [pendingMonth, setPendingMonth] = useState(anchorDate.getMonth())
+
+  // Reset pending state whenever the picker opens
+  useEffect(() => {
+    if (open) {
+      setPendingYear(anchorDate.getFullYear())
+      setPendingMonth(anchorDate.getMonth())
+    }
+  }, [open, anchorDate])
+
+  // Scroll the year list so the selected year is centered
   useEffect(() => {
     if (open && yearRef.current) {
-      const yearIndex = YEARS.indexOf(selectedYear)
+      const yearIndex = YEARS.indexOf(pendingYear)
       const itemHeight = 40
-      yearRef.current.scrollTop = yearIndex * itemHeight - yearRef.current.clientHeight / 2 + itemHeight / 2
+      yearRef.current.scrollTop =
+        yearIndex * itemHeight - yearRef.current.clientHeight / 2 + itemHeight / 2
     }
-  }, [open, selectedYear])
+  }, [open, pendingYear])
 
-  function handleMonthSelect(month: number) {
-    const currentYear = selectedYear
-    const lastDay = new Date(currentYear, month + 1, 0).getDate()
+  function applyAndClose(year: number, month: number) {
+    const lastDay = new Date(year, month + 1, 0).getDate()
     const day = Math.min(anchorDate.getDate(), lastDay)
-    onSelect(new Date(currentYear, month, day))
+    onSelect(new Date(year, month, day))
   }
 
-  function handleYearSelect(year: number) {
-    const lastDay = new Date(year, selectedMonth + 1, 0).getDate()
-    const day = Math.min(anchorDate.getDate(), lastDay)
-    onSelect(new Date(year, selectedMonth, day))
+  function handleYearTap(year: number) {
+    setPendingYear(year)
+    // Do NOT close — just highlight
+  }
+
+  function handleMonthTap(month: number) {
+    setPendingMonth(month)
+    applyAndClose(pendingYear, month)
+  }
+
+  function handleDone() {
+    applyAndClose(pendingYear, pendingMonth)
   }
 
   return (
@@ -62,10 +82,10 @@ export function MonthYearPicker({ open, anchorDate, onSelect, onClose }: Props) 
               <button
                 key={year}
                 type="button"
-                onClick={() => handleYearSelect(year)}
+                onClick={() => handleYearTap(year)}
                 className={cn(
                   "w-full h-10 text-sm font-medium transition-colors",
-                  year === selectedYear
+                  year === pendingYear
                     ? "bg-primary text-primary-foreground"
                     : "text-foreground hover:bg-muted"
                 )}
@@ -81,10 +101,10 @@ export function MonthYearPicker({ open, anchorDate, onSelect, onClose }: Props) 
               <button
                 key={name}
                 type="button"
-                onClick={() => handleMonthSelect(i)}
+                onClick={() => handleMonthTap(i)}
                 className={cn(
                   "h-12 rounded-lg text-sm font-medium transition-colors",
-                  i === selectedMonth
+                  i === pendingMonth
                     ? "bg-primary text-primary-foreground"
                     : "text-foreground hover:bg-muted"
                 )}
@@ -93,6 +113,12 @@ export function MonthYearPicker({ open, anchorDate, onSelect, onClose }: Props) 
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="border-t border-border px-4 py-3">
+          <Button onClick={handleDone} className="w-full h-10">
+            Done
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

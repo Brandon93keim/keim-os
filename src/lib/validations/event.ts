@@ -26,6 +26,9 @@ export const eventFormSchema = z
       .string()
       .regex(/^#[0-9a-fA-F]{6}$/)
       .nullable(),
+    rrule: z.string().nullable(),
+    recurrence_end_date: z.date().nullable(),
+    reminder_for_client_id: z.string().uuid().nullable(),
   })
   .refine((d) => d.end_time > d.start_time, {
     message: "End time must be after start time",
@@ -41,6 +44,10 @@ export const eventFormSchema = z
       message: "Meetings require a business and purpose",
       path: ["meeting_purpose"],
     }
+  )
+  .refine(
+    (data) => !(data.type === "job" && data.rrule !== null),
+    { message: "Jobs cannot recur", path: ["rrule"] }
   )
 
 export type EventFormValues = z.infer<typeof eventFormSchema>

@@ -35,7 +35,7 @@ export function CalendarFAB({ view, anchorDate, selectedDate, onOpen }: Props) {
       startTime = nine
     }
 
-    onOpen({ start_time: startTime, end_time: addHours(startTime, 1), type: "meeting" })
+    onOpen({ start_time: startTime, end_time: addHours(startTime, 1), type: "job" })
   }
 
   return (

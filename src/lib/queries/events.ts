@@ -60,6 +60,11 @@ export async function createEvent(values: EventFormValues): Promise<CalEvent> {
       description: values.description || null,
       job_total_amount: values.job_total_amount,
       color_override: values.color_override,
+      rrule: values.rrule ?? null,
+      recurrence_end_date: values.recurrence_end_date
+        ? values.recurrence_end_date.toISOString()
+        : null,
+      reminder_for_client_id: values.reminder_for_client_id ?? null,
     })
     .select()
     .single()
@@ -108,6 +113,11 @@ export async function updateEvent(
       description: values.description || null,
       job_total_amount: values.job_total_amount,
       color_override: values.color_override,
+      rrule: values.rrule ?? null,
+      recurrence_end_date: values.recurrence_end_date
+        ? values.recurrence_end_date.toISOString()
+        : null,
+      reminder_for_client_id: values.reminder_for_client_id ?? null,
     })
     .eq("id", id)
     .select()

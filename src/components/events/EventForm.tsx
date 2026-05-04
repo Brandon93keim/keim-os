@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { format, addHours } from "date-fns"
-import { Trash2 } from "lucide-react"
+import { ChevronRight, Trash2 } from "lucide-react"
 import {
   eventFormSchema,
   type EventFormValues,
@@ -47,10 +47,18 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
+import {
+  type RecurrenceConfig,
+  buildRRule,
+  rruleToString,
+  configFromRRule,
+  describeRecurrence,
+} from "@/lib/recurrence"
+import { RecurrencePicker } from "./RecurrencePicker"
 
 const EVENT_TYPES = [
-  { value: "meeting", label: "Meeting" },
   { value: "job", label: "Job" },
+  { value: "meeting", label: "Meeting" },
   { value: "personal", label: "Personal" },
   { value: "reminder", label: "Reminder" },
 ] as const
@@ -92,6 +100,9 @@ function buildDefaultValues(event?: CalEvent | null, defaults?: FormDefaults): E
       description: event.description ?? "",
       job_total_amount: event.job_total_amount ?? null,
       color_override: event.color_override ?? null,
+      rrule: null,
+      recurrence_end_date: null,
+      reminder_for_client_id: event.reminder_for_client_id ?? null,
     }
   }
 
@@ -99,7 +110,7 @@ function buildDefaultValues(event?: CalEvent | null, defaults?: FormDefaults): E
   const end = defaults?.end_time ?? addHours(start, 1)
 
   return {
-    type: defaults?.type ?? "meeting",
+    type: defaults?.type ?? "job",
     title: "",
     business_id: null,
     client_id: null,
@@ -111,6 +122,9 @@ function buildDefaultValues(event?: CalEvent | null, defaults?: FormDefaults): E
     description: "",
     job_total_amount: null,
     color_override: null,
+    rrule: null,
+    recurrence_end_date: null,
+    reminder_for_client_id: null,
   }
 }
 
@@ -146,15 +160,39 @@ export function EventForm({ event, defaults, onSuccess, onCancel }: Props) {
   const watchedDate = watchedStartTime instanceof Date ? watchedStartTime : new Date(watchedStartTime)
 
   const [calOpen, setCalOpen] = useState(false)
+  const [recurrenceOpen, setRecurrenceOpen] = useState(false)
+  const [recurrence, setRecurrence] = useState<RecurrenceConfig | null>(() => {
+    if (event?.rrule) {
+      try {
+        return configFromRRule(event.rrule, new Date(event.start_time))
+      } catch {
+        return null
+      }
+    }
+    return null
+  })
+
   const isSubmitting = form.formState.isSubmitting
 
   const showBusiness = watchedType === "meeting" || watchedType === "job" || watchedType === "reminder"
   const showClient = watchedType === "meeting" || watchedType === "job" || watchedType === "reminder"
   const showPurpose = watchedType === "meeting"
   const showJobAmount = watchedType === "job"
+  const isJob = watchedType === "job"
 
   async function onSubmit(rawValues: EventFormInput) {
     const values = rawValues as EventFormValues
+
+    // Compute rrule from recurrence state; recurrence is disabled for jobs
+    if (recurrence && values.type !== "job") {
+      values.rrule = rruleToString(buildRRule(recurrence, values.start_time))
+      values.recurrence_end_date =
+        recurrence.endType === "until" ? (recurrence.until ?? null) : null
+    } else {
+      values.rrule = null
+      values.recurrence_end_date = null
+    }
+
     if (event) {
       updateEvent.mutate({ id: event.id, values }, { onSuccess })
     } else {
@@ -186,7 +224,6 @@ export function EventForm({ event, defaults, onSuccess, onCancel }: Props) {
                       type="button"
                       onClick={() => {
                         field.onChange(value)
-                        // Clear business/client/purpose if switching to personal
                         if (value === "personal") {
                           form.setValue("business_id", null)
                           form.setValue("client_id", null)
@@ -197,6 +234,9 @@ export function EventForm({ event, defaults, onSuccess, onCancel }: Props) {
                         }
                         if (value !== "job") {
                           form.setValue("job_total_amount", null)
+                        }
+                        if (value === "job") {
+                          setRecurrence(null)
                         }
                       }}
                       className={cn(
@@ -444,6 +484,28 @@ export function EventForm({ event, defaults, onSuccess, onCancel }: Props) {
             </div>
           )}
 
+          {/* Repeat */}
+          <div className={cn("space-y-1", isJob && "opacity-50")}>
+            <Label>Repeat</Label>
+            <button
+              type="button"
+              disabled={isJob}
+              onClick={() => !isJob && setRecurrenceOpen(true)}
+              className="w-full flex items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors hover:bg-accent disabled:cursor-not-allowed"
+            >
+              <span className={cn(!recurrence && "text-muted-foreground")}>
+                {recurrence ? describeRecurrence(recurrence) : "Does not repeat"}
+              </span>
+              <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+            </button>
+            {isJob && (
+              <p className="text-xs text-muted-foreground">
+                Jobs cannot repeat. Save the job, then use Duplicate to create a similar one.
+                {/* TODO Phase 6: add Duplicate button */}
+              </p>
+            )}
+          </div>
+
           {/* Location */}
           <FormField
             control={form.control}
@@ -556,6 +618,14 @@ export function EventForm({ event, defaults, onSuccess, onCancel }: Props) {
           </div>
         </div>
       </form>
+
+      <RecurrencePicker
+        open={recurrenceOpen}
+        onOpenChange={setRecurrenceOpen}
+        value={recurrence}
+        onChange={setRecurrence}
+        dtstart={watchedDate}
+      />
     </Form>
   )
 }

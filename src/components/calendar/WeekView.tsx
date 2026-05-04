@@ -34,22 +34,42 @@ function eventColor(event: CalEvent): { bg: string; border: string; text: string
 export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Props) {
   const days = getWeekDays(anchorDate)
   const touchStartX = useRef<number | null>(null)
+  const touchStartY = useRef<number | null>(null)
+  const isVerticalScroll = useRef(false)
   const totalHeight = HOURS_IN_VIEW.length * HOUR_HEIGHT
 
   function handleTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+    isVerticalScroll.current = false
+  }
+  function handleTouchMove(e: React.TouchEvent) {
+    if (touchStartX.current === null || touchStartY.current === null) return
+    const dx = Math.abs(e.touches[0].clientX - touchStartX.current)
+    const dy = Math.abs(e.touches[0].clientY - touchStartY.current)
+    if (!isVerticalScroll.current && dy > 30 && dy > dx) {
+      isVerticalScroll.current = true
+    }
   }
   function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null) return
+    if (touchStartX.current === null || isVerticalScroll.current) {
+      touchStartX.current = null
+      touchStartY.current = null
+      isVerticalScroll.current = false
+      return
+    }
     const dx = e.changedTouches[0].clientX - touchStartX.current
     if (Math.abs(dx) > 50) dx < 0 ? onNext() : onPrev()
     touchStartX.current = null
+    touchStartY.current = null
+    isVerticalScroll.current = false
   }
 
   return (
     <div
       className="flex flex-col h-full overflow-hidden"
       onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
       {/* Day headers */}
