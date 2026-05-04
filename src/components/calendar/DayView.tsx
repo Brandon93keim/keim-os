@@ -1,0 +1,213 @@
+"use client"
+
+import { useEffect, useRef, useState } from "react"
+import { format, isToday, startOfDay } from "date-fns"
+import { BUSINESSES } from "@/lib/constants"
+import { roundToNearest15 } from "@/lib/date"
+import { cn } from "@/lib/utils"
+import { layoutEventsForDay, topForTime, heightForEvent, HOUR_HEIGHT, GRID_START_HOUR } from "./eventLayout"
+import type { CalEvent } from "@/lib/hooks/useEvents"
+
+const ALL_HOURS = Array.from({ length: 24 }, (_, i) => i)
+const DEFAULT_HOURS = Array.from({ length: 17 }, (_, i) => i + 6)
+
+interface Props {
+  anchorDate: Date
+  events: CalEvent[]
+  onEventTap: (event: CalEvent) => void
+  onSlotTap: (slotTime: Date) => void
+  onPrev: () => void
+  onNext: () => void
+}
+
+function eventColor(event: CalEvent): { bg: string; border: string; text: string } {
+  if (event.color_override) {
+    return { bg: event.color_override + "d9", border: event.color_override, text: "#fff" }
+  }
+  const biz = BUSINESSES.find((b) => b.id === event.business_id)
+  if (biz) {
+    return {
+      bg: biz.color + "d9",
+      border: biz.color,
+      text: biz.textColor === "white" ? "#fff" : "#000",
+    }
+  }
+  return { bg: "#475569d9", border: "#475569", text: "#fff" }
+}
+
+export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onNext }: Props) {
+  const [showEarlier, setShowEarlier] = useState(false)
+  const [showLater, setShowLater] = useState(false)
+  const [nowTop, setNowTop] = useState<number | null>(null)
+  const touchStartX = useRef<number | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const hours = (() => {
+    if (showEarlier && showLater) return ALL_HOURS
+    if (showEarlier) return Array.from({ length: 22 }, (_, i) => i)
+    if (showLater) return Array.from({ length: 18 }, (_, i) => i + 6)
+    return DEFAULT_HOURS
+  })()
+
+  const startHour = hours[0]
+  const totalHeight = hours.length * HOUR_HEIGHT
+
+  const layoutEvents = layoutEventsForDay(events, anchorDate)
+
+  function computeNowTop(): number | null {
+    if (!isToday(anchorDate)) return null
+    const now = new Date()
+    const hoursFrac = now.getHours() + now.getMinutes() / 60
+    const top = (hoursFrac - startHour) * HOUR_HEIGHT
+    if (top < 0 || top > totalHeight) return null
+    return top
+  }
+
+  useEffect(() => {
+    setNowTop(computeNowTop())
+    const timer = setInterval(() => setNowTop(computeNowTop()), 60_000)
+    return () => clearInterval(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anchorDate, startHour, totalHeight])
+
+  // Scroll to current time or 8am on mount
+  useEffect(() => {
+    if (!scrollRef.current) return
+    const target = nowTop ?? (8 - startHour) * HOUR_HEIGHT
+    scrollRef.current.scrollTop = Math.max(0, target - 80)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anchorDate])
+
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX
+  }
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null) return
+    const dx = e.changedTouches[0].clientX - touchStartX.current
+    if (Math.abs(dx) > 50) dx < 0 ? onNext() : onPrev()
+    touchStartX.current = null
+  }
+
+  function handleGridTap(e: React.MouseEvent<HTMLDivElement>) {
+    const target = e.currentTarget
+    const rect = target.getBoundingClientRect()
+    const y = e.clientY - rect.top
+    const hourFrac = y / HOUR_HEIGHT + startHour
+    const slotDate = new Date(anchorDate)
+    slotDate.setHours(Math.floor(hourFrac), Math.round((hourFrac % 1) * 60), 0, 0)
+    onSlotTap(roundToNearest15(slotDate))
+  }
+
+  return (
+    <div
+      className="flex flex-col h-full overflow-hidden"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Show earlier */}
+      {!showEarlier && (
+        <button
+          type="button"
+          onClick={() => setShowEarlier(true)}
+          className="shrink-0 text-xs text-muted-foreground py-1.5 border-b border-border hover:text-foreground"
+        >
+          Show earlier hours
+        </button>
+      )}
+
+      {/* Scrollable time grid */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        <div
+          className="relative"
+          style={{ height: totalHeight }}
+          onClick={handleGridTap}
+        >
+          {/* Hour gridlines */}
+          {hours.map((hour) => (
+            <div
+              key={hour}
+              className="absolute left-0 right-0"
+              style={{ top: (hour - startHour) * HOUR_HEIGHT }}
+            >
+              <div className="flex items-start">
+                <span className="w-10 shrink-0 text-right pr-2 text-[9px] text-muted-foreground -mt-2.5 select-none">
+                  {hour === 0
+                    ? "12a"
+                    : hour === 12
+                      ? "12p"
+                      : hour > 12
+                        ? `${hour - 12}p`
+                        : `${hour}a`}
+                </span>
+                <div className="flex-1 border-t border-border/40" />
+              </div>
+              <div className="absolute left-10 right-0 border-t border-border/20" style={{ top: HOUR_HEIGHT / 2 }} />
+            </div>
+          ))}
+
+          {/* Now indicator */}
+          {nowTop !== null && (
+            <div
+              className="absolute left-10 right-0 z-10 pointer-events-none"
+              style={{ top: nowTop }}
+            >
+              <div className="relative flex items-center">
+                <div className="absolute -left-1 w-2 h-2 rounded-full bg-red-500" />
+                <div className="flex-1 border-t-2 border-red-500" />
+              </div>
+            </div>
+          )}
+
+          {/* Events */}
+          {layoutEvents.map((event) => {
+            const start = new Date(event.start_time)
+            const end = new Date(event.end_time)
+            const top = topForTime(start) - (startHour - GRID_START_HOUR) * HOUR_HEIGHT
+            const height = heightForEvent(start, end)
+            const colors = eventColor(event)
+            const widthPct = 100 / event.cols
+            const leftPct = (event.col / event.cols) * 100
+
+            return (
+              <button
+                key={event.id}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onEventTap(event) }}
+                className="absolute rounded overflow-hidden text-left active:opacity-80"
+                style={{
+                  top,
+                  height,
+                  left: `calc(2.5rem + ${leftPct}% + 2px)`,
+                  width: `calc(${widthPct}% - 4px)`,
+                  borderLeft: `3px solid ${colors.border}`,
+                  backgroundColor: colors.bg,
+                  color: colors.text,
+                }}
+              >
+                <div className="px-1.5 pt-1">
+                  <div className="text-xs font-semibold leading-tight truncate">{event.title}</div>
+                  {height > 40 && (
+                    <div className="text-[10px] opacity-80 leading-tight">
+                      {format(start, "h:mm a")} – {format(end, "h:mm a")}
+                    </div>
+                  )}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Show later */}
+      {!showLater && (
+        <button
+          type="button"
+          onClick={() => setShowLater(true)}
+          className="shrink-0 text-xs text-muted-foreground py-1.5 border-t border-border hover:text-foreground"
+        >
+          Show later hours
+        </button>
+      )}
+    </div>
+  )
+}

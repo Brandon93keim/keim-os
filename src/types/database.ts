@@ -131,6 +131,51 @@ export type Database = {
         }
         Relationships: []
       }
+      event_exceptions: {
+        Row: {
+          action: string
+          created_at: string
+          event_id: string
+          id: string
+          modified_event_id: string | null
+          original_occurrence_date: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          event_id: string
+          id?: string
+          modified_event_id?: string | null
+          original_occurrence_date: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          event_id?: string
+          id?: string
+          modified_event_id?: string | null
+          original_occurrence_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_exceptions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_exceptions_modified_event_id_fkey"
+            columns: ["modified_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           all_day: boolean
@@ -145,6 +190,11 @@ export type Database = {
           job_total_amount: number | null
           location: string | null
           meeting_purpose: string | null
+          original_occurrence_date: string | null
+          parent_event_id: string | null
+          recurrence_end_date: string | null
+          reminder_for_client_id: string | null
+          rrule: string | null
           start_time: string
           status: string
           title: string
@@ -165,6 +215,11 @@ export type Database = {
           job_total_amount?: number | null
           location?: string | null
           meeting_purpose?: string | null
+          original_occurrence_date?: string | null
+          parent_event_id?: string | null
+          recurrence_end_date?: string | null
+          reminder_for_client_id?: string | null
+          rrule?: string | null
           start_time: string
           status?: string
           title: string
@@ -185,6 +240,11 @@ export type Database = {
           job_total_amount?: number | null
           location?: string | null
           meeting_purpose?: string | null
+          original_occurrence_date?: string | null
+          parent_event_id?: string | null
+          recurrence_end_date?: string | null
+          reminder_for_client_id?: string | null
+          rrule?: string | null
           start_time?: string
           status?: string
           title?: string
