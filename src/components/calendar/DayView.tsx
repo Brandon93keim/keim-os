@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { format, isToday, startOfDay } from "date-fns"
+import { Repeat } from "lucide-react"
 import { BUSINESSES } from "@/lib/constants"
 import { roundToNearest15 } from "@/lib/date"
 import { cn } from "@/lib/utils"
@@ -204,8 +205,14 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
                   color: colors.text,
                 }}
               >
-                <div className="px-1.5 pt-1">
-                  <div className="text-xs font-semibold leading-tight truncate">{event.title}</div>
+                <div className="px-1.5 pt-1 relative">
+                  {(event.is_recurring_instance || event.rrule) && (
+                    <Repeat
+                      size={10}
+                      className="absolute top-0 right-1 opacity-60"
+                    />
+                  )}
+                  <div className="text-xs font-semibold leading-tight truncate pr-3">{event.title}</div>
                   {height > 40 && (
                     <div className="text-[10px] opacity-80 leading-tight">
                       {format(start, "h:mm a")} – {format(end, "h:mm a")}

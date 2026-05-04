@@ -2,6 +2,7 @@
 
 import { useRef } from "react"
 import { format, isToday, isSameDay } from "date-fns"
+import { Repeat } from "lucide-react"
 import { getWeekDays, HOURS_IN_VIEW } from "@/lib/date"
 import { BUSINESSES } from "@/lib/constants"
 import { cn } from "@/lib/utils"
@@ -161,8 +162,14 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
                         color: colors.text,
                       }}
                     >
-                      <div className="px-0.5 pt-0.5">
-                        <div className="text-[10px] font-semibold leading-tight truncate">
+                      <div className="px-0.5 pt-0.5 relative">
+                        {(event.is_recurring_instance || event.rrule) && (
+                          <Repeat
+                            size={8}
+                            className="absolute top-0 right-0.5 opacity-60"
+                          />
+                        )}
+                        <div className="text-[10px] font-semibold leading-tight truncate pr-2">
                           {event.title}
                         </div>
                         <div className="text-[9px] opacity-80 leading-tight">

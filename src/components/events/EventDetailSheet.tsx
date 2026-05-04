@@ -1,7 +1,7 @@
 "use client"
 
 import { format } from "date-fns"
-import { MapPin, User, Edit2, Trash2 } from "lucide-react"
+import { MapPin, User, Edit2, Trash2, Repeat } from "lucide-react"
 import {
   Sheet,
   SheetContent,
@@ -25,6 +25,7 @@ import { BUSINESSES } from "@/lib/constants"
 import { useDeleteEvent, type CalEvent } from "@/lib/hooks/useEvents"
 import { useClients } from "@/lib/hooks/useClients"
 import { cn } from "@/lib/utils"
+import { configFromRRule, describeRecurrence } from "@/lib/recurrence"
 
 interface Props {
   open: boolean
@@ -58,8 +59,24 @@ export function EventDetailSheet({ open, onClose, event, onEdit }: Props) {
   const start = new Date(event.start_time)
   const end = new Date(event.end_time)
 
+  // Recurrence metadata
+  const isRecurring = !!(event.is_recurring_instance || event.rrule)
+  const deleteId = event.is_recurring_instance ? (event.master_id ?? event.id) : event.id
+
+  let recurrenceLabel: string | null = null
+  if (event.rrule) {
+    try {
+      const dtstart = event.master_start_time
+        ? new Date(event.master_start_time)
+        : new Date(event.start_time)
+      recurrenceLabel = describeRecurrence(configFromRRule(event.rrule, dtstart))
+    } catch {
+      // ignore parse errors
+    }
+  }
+
   function handleDelete() {
-    deleteEvent.mutate(event!.id, { onSuccess: onClose })
+    deleteEvent.mutate(deleteId, { onSuccess: onClose })
   }
 
   const dateStr = event.all_day
@@ -74,7 +91,12 @@ export function EventDetailSheet({ open, onClose, event, onEdit }: Props) {
         className="max-h-[80dvh] rounded-t-2xl p-0 gap-0 flex flex-col"
       >
         <SheetHeader className="px-4 pt-5 pb-3 border-b border-border shrink-0">
-          <SheetTitle className="text-lg leading-tight">{event.title}</SheetTitle>
+          <div className="flex items-start gap-2">
+            <SheetTitle className="text-lg leading-tight flex-1">{event.title}</SheetTitle>
+            {isRecurring && (
+              <Repeat size={14} className="text-muted-foreground shrink-0 mt-1" />
+            )}
+          </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-1">
             <Badge variant={STATUS_VARIANT[event.status] as "default" | "secondary" | "outline" | "destructive" ?? "secondary"}>
@@ -110,6 +132,14 @@ export function EventDetailSheet({ open, onClose, event, onEdit }: Props) {
 
           {/* Date / time */}
           <div className="text-sm text-foreground">{dateStr}</div>
+
+          {/* Recurrence label */}
+          {recurrenceLabel && (
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Repeat size={12} className="shrink-0" />
+              <span>Repeats {recurrenceLabel.toLowerCase()}</span>
+            </div>
+          )}
 
           {/* Client */}
           {client && (
@@ -158,8 +188,14 @@ export function EventDetailSheet({ open, onClose, event, onEdit }: Props) {
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete event?</AlertDialogTitle>
-                <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                <AlertDialogTitle>
+                  {isRecurring ? "Delete entire series?" : "Delete event?"}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {isRecurring
+                    ? "This will delete all occurrences of this event. This cannot be undone."
+                    : "This cannot be undone."}
+                </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>

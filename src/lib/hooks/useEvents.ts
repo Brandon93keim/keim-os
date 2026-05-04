@@ -9,6 +9,7 @@ import {
   updateEvent as updateEventQuery,
   deleteEvent as deleteEventQuery,
   updateEventStatus as updateEventStatusQuery,
+  type CalendarEvent,
   type CalEvent,
 } from "@/lib/queries/events"
 import type { EventFormValues } from "@/lib/validations/event"
@@ -22,6 +23,7 @@ export function useEventsBetween(start: Date, end: Date) {
 
 export function useEvent(id: string | null) {
   return useQuery({
+    // Full composite id is the cache key so different instances cache separately.
     queryKey: ["events", id],
     queryFn: () => getEvent(id!),
     enabled: !!id,
@@ -85,4 +87,4 @@ export function useUpdateEventStatus() {
   })
 }
 
-export type { CalEvent }
+export type { CalendarEvent, CalEvent }

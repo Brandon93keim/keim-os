@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { addDays, addHours, addMonths, addWeeks, startOfDay, subDays, subMonths, subWeeks } from "date-fns"
+import { toast } from "sonner"
 import { CalendarHeader } from "./CalendarHeader"
 import { MonthView } from "./MonthView"
 import { WeekView } from "./WeekView"
@@ -84,7 +85,27 @@ export function Calendar() {
 
   function handleEditFromDetail(event: CalEvent) {
     setDetailOpen(false)
-    setEditEvent(event)
+
+    let eventToEdit = event
+    if (event.is_recurring_instance && event.master_id) {
+      // Inform user that editing affects the whole series (Phase 5d will add per-instance editing).
+      toast.info(
+        "Editing recurring events coming soon. Opening the master event — changes affect all occurrences."
+      )
+      // Reconstruct master event from the synthetic instance's copied fields.
+      const duration =
+        new Date(event.end_time).getTime() - new Date(event.start_time).getTime()
+      const masterStart = event.master_start_time ?? event.start_time
+      eventToEdit = {
+        ...event,
+        id: event.master_id,
+        start_time: masterStart,
+        end_time: new Date(new Date(masterStart).getTime() + duration).toISOString(),
+        is_recurring_instance: false,
+      }
+    }
+
+    setEditEvent(eventToEdit)
     setFormDefaults({})
     setFormOpen(true)
   }
