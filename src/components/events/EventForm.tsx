@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { format, addHours } from "date-fns"
@@ -172,6 +172,9 @@ export function EventForm({
   const updateRecurringAll = useUpdateRecurringAll()
   const { data: clients = [] } = useClients()
 
+  // Tracks whether the user manually toggled all_day during this form session
+  const userToggledAllDay = useRef(false)
+
   const form = useForm<EventFormInput>({
     resolver: zodResolver(eventFormSchema),
     defaultValues: buildDefaultValues(event, defaults),
@@ -203,7 +206,8 @@ export function EventForm({
   const isSubmitting = form.formState.isSubmitting
 
   const showBusiness = watchedType === "meeting" || watchedType === "job" || watchedType === "reminder"
-  const showClient = watchedType === "meeting" || watchedType === "job" || watchedType === "reminder"
+  const showClient = watchedType === "meeting" || watchedType === "job"
+  const showReminderClient = watchedType === "reminder"
   const showPurpose = watchedType === "meeting"
   const showJobAmount = watchedType === "job"
   const isJob = watchedType === "job"
@@ -288,6 +292,9 @@ export function EventForm({
                       type="button"
                       onClick={() => {
                         field.onChange(value)
+                        if (value === "reminder" && !userToggledAllDay.current) {
+                          form.setValue("all_day", true)
+                        }
                         if (value === "personal") {
                           form.setValue("business_id", null)
                           form.setValue("client_id", null)
@@ -298,6 +305,12 @@ export function EventForm({
                         }
                         if (value !== "job") {
                           form.setValue("job_total_amount", null)
+                        }
+                        if (value !== "reminder") {
+                          form.setValue("reminder_for_client_id", null)
+                        }
+                        if (value === "reminder") {
+                          form.setValue("client_id", null)
                         }
                         if (value === "job") {
                           setRecurrence(null)
@@ -327,7 +340,15 @@ export function EventForm({
               <FormItem>
                 <FormLabel>Title *</FormLabel>
                 <FormControl>
-                  <Input placeholder="Event title" autoFocus {...field} />
+                  <Input
+                    placeholder={
+                      watchedType === "reminder"
+                        ? "Reminder title (e.g. Follow up with Smith wedding)"
+                        : "Event title"
+                    }
+                    autoFocus
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -341,7 +362,9 @@ export function EventForm({
               name="business_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Business</FormLabel>
+                  <FormLabel>
+                    Business{watchedType === "job" || watchedType === "meeting" ? "" : ""}
+                  </FormLabel>
                   <div className="flex flex-wrap gap-2">
                     {BUSINESSES.map((biz) => {
                       const selected = field.value === biz.id
@@ -369,7 +392,7 @@ export function EventForm({
             />
           )}
 
-          {/* Client */}
+          {/* Client (for meeting / job) */}
           {showClient && (
             <FormField
               control={form.control}
@@ -397,6 +420,41 @@ export function EventForm({
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
+          {/* Linked client (for reminders only — saves to reminder_for_client_id) */}
+          {showReminderClient && (
+            <FormField
+              control={form.control}
+              name="reminder_for_client_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Linked client (optional)</FormLabel>
+                  <Select
+                    onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
+                    value={field.value ?? "__none__"}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select client…" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="__none__">None</SelectItem>
+                      {clients.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}{c.company ? ` — ${c.company}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Reminder will link to this client&apos;s detail page
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
@@ -445,7 +503,10 @@ export function EventForm({
                   type="button"
                   role="switch"
                   aria-checked={field.value}
-                  onClick={() => field.onChange(!field.value)}
+                  onClick={() => {
+                    userToggledAllDay.current = true
+                    field.onChange(!field.value)
+                  }}
                   className={cn(
                     "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
                     field.value ? "bg-primary" : "bg-muted"

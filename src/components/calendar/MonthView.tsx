@@ -9,6 +9,9 @@ import type { CalEvent } from "@/lib/hooks/useEvents"
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
+const MAX_STRIPES = 3
+const MAX_DOTS = 4
+
 interface Props {
   anchorDate: Date
   selectedDate: Date | null
@@ -31,9 +34,15 @@ function getBusinessStripes(events: CalEvent[]) {
       const biz = BUSINESSES.find((b) => b.id === e.business_id)
       if (biz) stripes.push({ color: biz.color })
     }
-    if (stripes.length >= 4) break
   }
   return stripes
+}
+
+function getReminderDots(events: CalEvent[]) {
+  return events.map((e) => {
+    const biz = BUSINESSES.find((b) => b.id === e.business_id)
+    return { color: biz?.color ?? "#9ca3af" }
+  })
 }
 
 export function MonthView({ anchorDate, selectedDate, events, onDayTap, onPrev, onNext }: Props) {
@@ -96,9 +105,17 @@ export function MonthView({ anchorDate, selectedDate, events, onDayTap, onPrev, 
       <div className="grid grid-cols-7 grid-rows-6 flex-1">
         {days.map((day) => {
           const dayEvents = getEventsForDay(events, day)
-          const stripes = getBusinessStripes(dayEvents)
-          const extra = stripes.length >= 4 ? dayEvents.length - 3 : 0
-          const visibleStripes = extra > 0 ? stripes.slice(0, 3) : stripes
+          const reminderEvents = dayEvents.filter((e) => e.type === "reminder")
+          const nonReminderEvents = dayEvents.filter((e) => e.type !== "reminder")
+
+          const dots = getReminderDots(reminderEvents)
+          const visibleDots = dots.slice(0, MAX_DOTS)
+          const extraDots = dots.length > MAX_DOTS ? dots.length - MAX_DOTS : 0
+
+          const stripes = getBusinessStripes(nonReminderEvents)
+          const visibleStripes = stripes.slice(0, MAX_STRIPES)
+          const extraStripes = stripes.length > MAX_STRIPES ? stripes.length - MAX_STRIPES : 0
+
           const isCurrentMonth = isSameMonth(day, anchorDate)
           const todayDay = isToday(day)
           const selected = selectedDate ? isSameDay(day, selectedDate) : false
@@ -124,7 +141,25 @@ export function MonthView({ anchorDate, selectedDate, events, onDayTap, onPrev, 
                 {format(day, "d")}
               </span>
 
-              {/* Business stripes */}
+              {/* Reminder dots row */}
+              {(visibleDots.length > 0 || extraDots > 0) && (
+                <div className="w-full flex items-center gap-0.5 mt-0.5">
+                  {visibleDots.map((dot, i) => (
+                    <div
+                      key={i}
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ backgroundColor: dot.color }}
+                    />
+                  ))}
+                  {extraDots > 0 && (
+                    <span className="text-[9px] text-muted-foreground font-medium leading-none">
+                      +{extraDots}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Business stripes row */}
               <div className="w-full flex flex-col gap-px mt-auto">
                 {visibleStripes.map((stripe, i) => (
                   <div
@@ -133,9 +168,9 @@ export function MonthView({ anchorDate, selectedDate, events, onDayTap, onPrev, 
                     style={{ backgroundColor: stripe.color }}
                   />
                 ))}
-                {extra > 0 && (
+                {extraStripes > 0 && (
                   <span className="text-[9px] text-muted-foreground font-medium leading-none">
-                    +{extra}
+                    +{extraStripes}
                   </span>
                 )}
               </div>

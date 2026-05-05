@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { format } from "date-fns"
-import { MapPin, User, Edit2, Trash2, Repeat } from "lucide-react"
+import { Bell, MapPin, User, Edit2, Trash2, Repeat } from "lucide-react"
+import { useRouter } from "next/navigation"
 import {
   Sheet,
   SheetContent,
@@ -60,6 +61,7 @@ export function EventDetailSheet({ open, onClose, event, onEdit }: Props) {
   const [recurringDialogOpen, setRecurringDialogOpen] = useState(false)
   const [recurringDialogMode, setRecurringDialogMode] = useState<"edit" | "delete">("edit")
   const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
+  const router = useRouter()
 
   const deleteEvent = useDeleteEvent()
   const deleteRecurringSingle = useDeleteRecurringSingle()
@@ -71,8 +73,10 @@ export function EventDetailSheet({ open, onClose, event, onEdit }: Props) {
 
   const biz = BUSINESSES.find((b) => b.id === event.business_id)
   const client = clients.find((c) => c.id === event.client_id)
+  const reminderClient = clients.find((c) => c.id === event.reminder_for_client_id)
   const start = new Date(event.start_time)
   const end = new Date(event.end_time)
+  const isReminder = event.type === "reminder"
 
   const isRecurring = !!(event.is_recurring_instance || event.rrule)
   const masterId = event.is_recurring_instance ? (event.master_id ?? event.id) : event.id
@@ -127,16 +131,23 @@ export function EventDetailSheet({ open, onClose, event, onEdit }: Props) {
         >
           <SheetHeader className="px-4 pt-5 pb-3 border-b border-border shrink-0">
             <div className="flex items-start gap-2">
-              <SheetTitle className="text-lg leading-tight flex-1">{event.title}</SheetTitle>
+              <SheetTitle className="text-lg leading-tight flex-1 flex items-center gap-1.5">
+                {isReminder && (
+                  <Bell size={16} className="shrink-0 text-muted-foreground mt-0.5" />
+                )}
+                {event.title}
+              </SheetTitle>
               {isRecurring && (
                 <Repeat size={14} className="text-muted-foreground shrink-0 mt-1" />
               )}
             </div>
 
             <div className="flex flex-wrap items-center gap-2 mt-1">
-              <Badge variant={STATUS_VARIANT[event.status] as "default" | "secondary" | "outline" | "destructive" ?? "secondary"}>
-                {event.status}
-              </Badge>
+              {!isReminder && (
+                <Badge variant={STATUS_VARIANT[event.status] as "default" | "secondary" | "outline" | "destructive" ?? "secondary"}>
+                  {event.status}
+                </Badge>
+              )}
               <Badge variant="outline">{TYPE_LABELS[event.type] ?? event.type}</Badge>
               {biz && (
                 <span
@@ -150,7 +161,8 @@ export function EventDetailSheet({ open, onClose, event, onEdit }: Props) {
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-            {event.job_number && (
+            {/* Job number + amount — hidden for reminders */}
+            {event.job_number && !isReminder && (
               <div className="flex items-center gap-2 p-3 rounded-xl bg-muted">
                 <span className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">
                   Job
@@ -173,7 +185,32 @@ export function EventDetailSheet({ open, onClose, event, onEdit }: Props) {
               </div>
             )}
 
-            {client && (
+            {/* Linked client card for reminders — tappable, navigates to client detail */}
+            {isReminder && reminderClient && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose()
+                  router.push(`/clients/${reminderClient.id}`)
+                }}
+                className="w-full flex items-center gap-2 p-3 rounded-xl bg-muted text-left active:opacity-70 transition-opacity"
+              >
+                <User size={15} className="text-muted-foreground shrink-0" />
+                <span className="text-sm font-medium flex-1 truncate">{reminderClient.name}</span>
+                {reminderClient.company && (
+                  <span className="text-sm text-muted-foreground truncate">— {reminderClient.company}</span>
+                )}
+                <Badge
+                  variant={reminderClient.status === "active" ? "default" : "secondary"}
+                  className="shrink-0 text-[10px]"
+                >
+                  {reminderClient.status}
+                </Badge>
+              </button>
+            )}
+
+            {/* Regular client display for non-reminder events */}
+            {!isReminder && client && (
               <div className="flex items-center gap-2 text-sm">
                 <User size={15} className="text-muted-foreground shrink-0" />
                 <span>{client.name}</span>
