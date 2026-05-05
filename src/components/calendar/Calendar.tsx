@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from "react"
 import { addDays, addHours, addMonths, addWeeks, startOfDay, subDays, subMonths, subWeeks } from "date-fns"
-import { toast } from "sonner"
 import { CalendarHeader } from "./CalendarHeader"
 import { MonthView } from "./MonthView"
 import { WeekView } from "./WeekView"
@@ -13,6 +12,7 @@ import { EventDetailSheet } from "@/components/events/EventDetailSheet"
 import { getCalendarDays, getWeekDays } from "@/lib/date"
 import { useEventsBetween, type CalEvent } from "@/lib/hooks/useEvents"
 import type { EventFormValues } from "@/lib/validations/event"
+import type { RecurringScope } from "@/components/events/RecurringEditDialog"
 
 export type CalendarView = "month" | "week" | "day"
 
@@ -30,6 +30,9 @@ export function Calendar() {
   const [formOpen, setFormOpen] = useState(false)
   const [formDefaults, setFormDefaults] = useState<FormDefaults>({})
   const [editEvent, setEditEvent] = useState<CalEvent | null>(null)
+  const [recurringEditScope, setRecurringEditScope] = useState<RecurringScope | undefined>()
+  const [recurringMasterId, setRecurringMasterId] = useState<string | undefined>()
+  const [recurringOccurrenceDate, setRecurringOccurrenceDate] = useState<Date | undefined>()
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailEvent, setDetailEvent] = useState<CalEvent | null>(null)
@@ -83,29 +86,41 @@ export function Calendar() {
     setDetailOpen(true)
   }, [])
 
-  function handleEditFromDetail(event: CalEvent) {
+  function handleEditFromDetail(event: CalEvent, scope?: RecurringScope) {
     setDetailOpen(false)
 
-    let eventToEdit = event
-    if (event.is_recurring_instance && event.master_id) {
-      // Inform user that editing affects the whole series (Phase 5d will add per-instance editing).
-      toast.info(
-        "Editing recurring events coming soon. Opening the master event — changes affect all occurrences."
-      )
-      // Reconstruct master event from the synthetic instance's copied fields.
-      const duration =
-        new Date(event.end_time).getTime() - new Date(event.start_time).getTime()
+    if (!scope) {
+      setEditEvent(event)
+      setRecurringEditScope(undefined)
+      setRecurringMasterId(undefined)
+      setRecurringOccurrenceDate(undefined)
+      setFormDefaults({})
+      setFormOpen(true)
+      return
+    }
+
+    const masterId = event.master_id ?? event.id
+    const occurrenceDate = new Date(event.occurrence_date ?? event.start_time)
+
+    let eventToEdit: CalEvent
+    if (scope === "all") {
+      const duration = new Date(event.end_time).getTime() - new Date(event.start_time).getTime()
       const masterStart = event.master_start_time ?? event.start_time
       eventToEdit = {
         ...event,
-        id: event.master_id,
+        id: masterId,
         start_time: masterStart,
         end_time: new Date(new Date(masterStart).getTime() + duration).toISOString(),
         is_recurring_instance: false,
       }
+    } else {
+      eventToEdit = event
     }
 
     setEditEvent(eventToEdit)
+    setRecurringEditScope(scope)
+    setRecurringMasterId(masterId)
+    setRecurringOccurrenceDate(occurrenceDate)
     setFormDefaults({})
     setFormOpen(true)
   }
@@ -163,9 +178,17 @@ export function Calendar() {
 
       <EventFormSheet
         open={formOpen}
-        onClose={() => setFormOpen(false)}
+        onClose={() => {
+          setFormOpen(false)
+          setRecurringEditScope(undefined)
+          setRecurringMasterId(undefined)
+          setRecurringOccurrenceDate(undefined)
+        }}
         defaults={formDefaults}
         event={editEvent}
+        recurringEditScope={recurringEditScope}
+        recurringMasterId={recurringMasterId}
+        recurringOccurrenceDate={recurringOccurrenceDate}
       />
 
       <EventDetailSheet

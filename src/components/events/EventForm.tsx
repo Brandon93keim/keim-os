@@ -12,7 +12,15 @@ import {
 } from "@/lib/validations/event"
 import { BUSINESSES } from "@/lib/constants"
 import { BUSINESS_IDS } from "@/lib/validations/client"
-import { useCreateEvent, useUpdateEvent, useDeleteEvent, type CalEvent } from "@/lib/hooks/useEvents"
+import {
+  useCreateEvent,
+  useUpdateEvent,
+  useDeleteEvent,
+  useUpdateRecurringSingle,
+  useUpdateRecurringFollowing,
+  useUpdateRecurringAll,
+  type CalEvent,
+} from "@/lib/hooks/useEvents"
 import { useClients } from "@/lib/hooks/useClients"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -55,6 +63,7 @@ import {
   describeRecurrence,
 } from "@/lib/recurrence"
 import { RecurrencePicker } from "./RecurrencePicker"
+import type { RecurringScope } from "./RecurringEditDialog"
 
 const EVENT_TYPES = [
   { value: "job", label: "Job" },
@@ -81,6 +90,9 @@ interface Props {
   defaults?: FormDefaults
   onSuccess: () => void
   onCancel: () => void
+  recurringEditScope?: RecurringScope
+  recurringMasterId?: string
+  recurringOccurrenceDate?: Date
 }
 
 function buildDefaultValues(event?: CalEvent | null, defaults?: FormDefaults): EventFormInput {
@@ -143,10 +155,21 @@ function setTimeOnDate(base: Date, hhmm: string): Date {
   return result
 }
 
-export function EventForm({ event, defaults, onSuccess, onCancel }: Props) {
+export function EventForm({
+  event,
+  defaults,
+  onSuccess,
+  onCancel,
+  recurringEditScope,
+  recurringMasterId,
+  recurringOccurrenceDate,
+}: Props) {
   const createEvent = useCreateEvent()
   const updateEvent = useUpdateEvent()
   const deleteEvent = useDeleteEvent()
+  const updateRecurringSingle = useUpdateRecurringSingle()
+  const updateRecurringFollowing = useUpdateRecurringFollowing()
+  const updateRecurringAll = useUpdateRecurringAll()
   const { data: clients = [] } = useClients()
 
   const form = useForm<EventFormInput>({
@@ -162,9 +185,14 @@ export function EventForm({ event, defaults, onSuccess, onCancel }: Props) {
   const [calOpen, setCalOpen] = useState(false)
   const [recurrenceOpen, setRecurrenceOpen] = useState(false)
   const [recurrence, setRecurrence] = useState<RecurrenceConfig | null>(() => {
+    // Single-occurrence edits are detached overrides — no recurrence.
+    if (recurringEditScope === "single") return null
     if (event?.rrule) {
       try {
-        return configFromRRule(event.rrule, new Date(event.start_time))
+        const dtstart = event.master_start_time
+          ? new Date(event.master_start_time)
+          : new Date(event.start_time)
+        return configFromRRule(event.rrule, dtstart)
       } catch {
         return null
       }
@@ -183,7 +211,6 @@ export function EventForm({ event, defaults, onSuccess, onCancel }: Props) {
   async function onSubmit(rawValues: EventFormInput) {
     const values = rawValues as EventFormValues
 
-    // Compute rrule from recurrence state; recurrence is disabled for jobs
     if (recurrence && values.type !== "job") {
       values.rrule = rruleToString(buildRRule(recurrence, values.start_time))
       values.recurrence_end_date =
@@ -191,6 +218,26 @@ export function EventForm({ event, defaults, onSuccess, onCancel }: Props) {
     } else {
       values.rrule = null
       values.recurrence_end_date = null
+    }
+
+    if (recurringEditScope && recurringMasterId) {
+      if (recurringEditScope === "single" && recurringOccurrenceDate) {
+        updateRecurringSingle.mutate(
+          { masterId: recurringMasterId, occurrenceDate: recurringOccurrenceDate, values },
+          { onSuccess }
+        )
+      } else if (recurringEditScope === "following" && recurringOccurrenceDate) {
+        updateRecurringFollowing.mutate(
+          { masterId: recurringMasterId, occurrenceDate: recurringOccurrenceDate, values },
+          { onSuccess }
+        )
+      } else if (recurringEditScope === "all") {
+        updateRecurringAll.mutate(
+          { masterId: recurringMasterId, values },
+          { onSuccess }
+        )
+      }
+      return
     }
 
     if (event) {
@@ -209,6 +256,23 @@ export function EventForm({ event, defaults, onSuccess, onCancel }: Props) {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+
+          {/* Scope banner for recurring edits */}
+          {recurringEditScope === "single" && (
+            <div className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+              Editing this occurrence only. Changes will not affect other occurrences.
+            </div>
+          )}
+          {recurringEditScope === "following" && (
+            <div className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+              Changes apply to this and all following occurrences.
+            </div>
+          )}
+          {recurringEditScope === "all" && (
+            <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
+              Changes apply to all occurrences, including past ones.
+            </div>
+          )}
 
           {/* Type segmented control */}
           <FormField
@@ -484,27 +548,28 @@ export function EventForm({ event, defaults, onSuccess, onCancel }: Props) {
             </div>
           )}
 
-          {/* Repeat */}
-          <div className={cn("space-y-1", isJob && "opacity-50")}>
-            <Label>Repeat</Label>
-            <button
-              type="button"
-              disabled={isJob}
-              onClick={() => !isJob && setRecurrenceOpen(true)}
-              className="w-full flex items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors hover:bg-accent disabled:cursor-not-allowed"
-            >
-              <span className={cn(!recurrence && "text-muted-foreground")}>
-                {recurrence ? describeRecurrence(recurrence) : "Does not repeat"}
-              </span>
-              <ChevronRight size={16} className="text-muted-foreground shrink-0" />
-            </button>
-            {isJob && (
-              <p className="text-xs text-muted-foreground">
-                Jobs cannot repeat. Save the job, then use Duplicate to create a similar one.
-                {/* TODO Phase 6: add Duplicate button */}
-              </p>
-            )}
-          </div>
+          {/* Repeat — hidden when editing a single occurrence (override has no rrule) */}
+          {recurringEditScope !== "single" && (
+            <div className={cn("space-y-1", isJob && "opacity-50")}>
+              <Label>Repeat</Label>
+              <button
+                type="button"
+                disabled={isJob}
+                onClick={() => !isJob && setRecurrenceOpen(true)}
+                className="w-full flex items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors hover:bg-accent disabled:cursor-not-allowed"
+              >
+                <span className={cn(!recurrence && "text-muted-foreground")}>
+                  {recurrence ? describeRecurrence(recurrence) : "Does not repeat"}
+                </span>
+                <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+              </button>
+              {isJob && (
+                <p className="text-xs text-muted-foreground">
+                  Jobs cannot repeat. Save the job, then use Duplicate to create a similar one.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Location */}
           <FormField
@@ -573,7 +638,7 @@ export function EventForm({ event, defaults, onSuccess, onCancel }: Props) {
           style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
         >
           <div className="flex gap-3">
-            {event && (
+            {event && !recurringEditScope && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button

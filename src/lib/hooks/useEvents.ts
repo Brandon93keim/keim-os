@@ -9,6 +9,12 @@ import {
   updateEvent as updateEventQuery,
   deleteEvent as deleteEventQuery,
   updateEventStatus as updateEventStatusQuery,
+  updateRecurringSingle as updateRecurringSingleQuery,
+  updateRecurringFollowing as updateRecurringFollowingQuery,
+  updateRecurringAll as updateRecurringAllQuery,
+  deleteRecurringSingle as deleteRecurringSingleQuery,
+  deleteRecurringFollowing as deleteRecurringFollowingQuery,
+  deleteRecurringAll as deleteRecurringAllQuery,
   type CalendarEvent,
   type CalEvent,
 } from "@/lib/queries/events"
@@ -83,6 +89,98 @@ export function useUpdateEventStatus() {
     },
     onError: (err: Error) => {
       toast.error(err.message ?? "Failed to update event status")
+    },
+  })
+}
+
+export function useUpdateRecurringSingle() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ masterId, occurrenceDate, values }: { masterId: string; occurrenceDate: Date; values: EventFormValues }) =>
+      updateRecurringSingleQuery(masterId, occurrenceDate, values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] })
+      toast.success("Occurrence updated")
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to update occurrence")
+    },
+  })
+}
+
+export function useUpdateRecurringFollowing() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ masterId, occurrenceDate, values }: { masterId: string; occurrenceDate: Date; values: EventFormValues }) =>
+      updateRecurringFollowingQuery(masterId, occurrenceDate, values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] })
+      toast.success("This and following occurrences updated")
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to update occurrences")
+    },
+  })
+}
+
+export function useUpdateRecurringAll() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ masterId, values }: { masterId: string; values: EventFormValues }) =>
+      updateRecurringAllQuery(masterId, values),
+    onSuccess: ({ clearedCount }) => {
+      queryClient.invalidateQueries({ queryKey: ["events"] })
+      toast.success("All occurrences updated")
+      if (clearedCount > 0) {
+        toast.info(`Cleared ${clearedCount} exception${clearedCount === 1 ? "" : "s"}`)
+      }
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to update series")
+    },
+  })
+}
+
+export function useDeleteRecurringSingle() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ masterId, occurrenceDate }: { masterId: string; occurrenceDate: Date }) =>
+      deleteRecurringSingleQuery(masterId, occurrenceDate),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] })
+      toast.success("Occurrence deleted")
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to delete occurrence")
+    },
+  })
+}
+
+export function useDeleteRecurringFollowing() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ masterId, occurrenceDate }: { masterId: string; occurrenceDate: Date }) =>
+      deleteRecurringFollowingQuery(masterId, occurrenceDate),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] })
+      toast.success("This and following occurrences deleted")
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to delete occurrences")
+    },
+  })
+}
+
+export function useDeleteRecurringAll() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (masterId: string) => deleteRecurringAllQuery(masterId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] })
+      toast.success("Series deleted")
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to delete series")
     },
   })
 }
