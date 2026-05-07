@@ -83,6 +83,7 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
   return (
     <div
       className="flex flex-col h-full overflow-hidden"
+      style={{ touchAction: "pan-y" }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -154,7 +155,7 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
       )}
 
       {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <div className="flex" style={{ height: totalHeight }}>
           {/* Time gutter */}
           <div className="w-10 shrink-0 relative">

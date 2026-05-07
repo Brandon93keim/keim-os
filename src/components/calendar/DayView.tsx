@@ -139,6 +139,7 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
   return (
     <div
       className="flex flex-col h-full overflow-hidden"
+      style={{ touchAction: "pan-y" }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -186,7 +187,7 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
       )}
 
       {/* Scrollable time grid */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden">
         <div
           className="relative"
           style={{ height: totalHeight }}

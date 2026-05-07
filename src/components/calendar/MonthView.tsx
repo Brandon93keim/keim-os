@@ -85,6 +85,7 @@ export function MonthView({ anchorDate, selectedDate, events, onDayTap, onPrev, 
   return (
     <div
       className="flex flex-col h-full select-none"
+      style={{ touchAction: "pan-y" }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
