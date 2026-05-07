@@ -45,6 +45,7 @@ export function InvoiceFormSheet({ open, onClose, invoice }: Props) {
         side="bottom"
         showCloseButton={false}
         className="h-[95dvh] rounded-t-2xl p-0 gap-0 flex flex-col"
+        onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <SheetHeader className="px-4 pt-5 pb-3 border-b border-border shrink-0">
           <SheetTitle>{title}</SheetTitle>

@@ -111,7 +111,7 @@ export function ClientForm({ client, onSuccess, onCancel }: Props) {
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col flex-1 min-h-0"
       >
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y px-4 py-4 pb-6 space-y-5">
           {/* Name */}
           <FormField
             control={form.control}
@@ -122,7 +122,6 @@ export function ClientForm({ client, onSuccess, onCancel }: Props) {
                 <FormControl>
                   <Input
                     placeholder="Client name"
-                    autoFocus
                     autoComplete="name"
                     {...field}
                   />
