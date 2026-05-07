@@ -3,8 +3,8 @@ import { createClient } from "@/lib/supabase/client"
 import type { InvoiceFormValues, PaymentFormValues } from "@/lib/validations/invoice"
 
 // ---------------------------------------------------------------------------
-// Local types — will align with Tables<"invoices"> etc. after types are
-// regenerated: npx supabase gen types typescript --linked > src/types/database.ts
+// App-layer types — structurally identical to Tables<"invoices"|…>["Row"]
+// but stable for import by UI components.
 // ---------------------------------------------------------------------------
 
 export interface InvoiceRow {
@@ -84,8 +84,7 @@ async function getUserId(): Promise<string> {
 }
 
 export async function listInvoices(): Promise<InvoiceSummary[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createClient() as any
+  const supabase = createClient()
   const userId = await getUserId()
 
   const { data, error } = await supabase
@@ -100,8 +99,7 @@ export async function listInvoices(): Promise<InvoiceSummary[]> {
 }
 
 export async function listInvoicesForClient(clientId: string): Promise<InvoiceSummary[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createClient() as any
+  const supabase = createClient()
   const userId = await getUserId()
 
   const { data, error } = await supabase
@@ -116,8 +114,7 @@ export async function listInvoicesForClient(clientId: string): Promise<InvoiceSu
 }
 
 export async function getInvoice(id: string): Promise<Invoice> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createClient() as any
+  const supabase = createClient()
   const userId = await getUserId()
 
   const { data, error } = await supabase
@@ -144,8 +141,7 @@ export async function getInvoice(id: string): Promise<Invoice> {
 }
 
 export async function createInvoice(values: InvoiceFormValues): Promise<InvoiceRow> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createClient() as any
+  const supabase = createClient()
   const userId = await getUserId()
 
   // 1. Insert invoice header
@@ -174,19 +170,19 @@ export async function createInvoice(values: InvoiceFormValues): Promise<InvoiceR
     { p_business_id: values.business_id }
   )
   if (numErr) {
-    await supabase.from("invoices").delete().eq("id", invoice.id)
+    await supabase.from("invoices").delete().eq("id", invoice!.id)
     throw numErr
   }
 
   await supabase
     .from("invoices")
     .update({ invoice_number: invNum })
-    .eq("id", invoice.id)
+    .eq("id", invoice!.id)
 
-  // 3. Insert line items (trigger will recompute totals after each insert)
+  // 3. Insert line items (trigger recomputes totals after each insert)
   const lineItems = values.line_items.map((item, i) => ({
     user_id: userId,
-    invoice_id: invoice.id,
+    invoice_id: invoice!.id,
     event_id: item.event_id,
     description: item.description,
     quantity: item.quantity,
@@ -197,7 +193,7 @@ export async function createInvoice(values: InvoiceFormValues): Promise<InvoiceR
 
   const { error: liErr } = await supabase.from("invoice_line_items").insert(lineItems)
   if (liErr) {
-    await supabase.from("invoices").delete().eq("id", invoice.id)
+    await supabase.from("invoices").delete().eq("id", invoice!.id)
     throw liErr
   }
 
@@ -205,8 +201,7 @@ export async function createInvoice(values: InvoiceFormValues): Promise<InvoiceR
 }
 
 export async function updateInvoice(id: string, values: InvoiceFormValues): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createClient() as any
+  const supabase = createClient()
   const userId = await getUserId()
 
   // 1. Update invoice header
@@ -251,15 +246,13 @@ export async function updateInvoice(id: string, values: InvoiceFormValues): Prom
 }
 
 export async function deleteInvoice(id: string): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createClient() as any
+  const supabase = createClient()
   const { error } = await supabase.from("invoices").delete().eq("id", id)
   if (error) throw error
 }
 
 export async function markInvoiceSent(id: string): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createClient() as any
+  const supabase = createClient()
   const { error } = await supabase
     .from("invoices")
     .update({ status: "sent", sent_at: new Date().toISOString() })
@@ -268,8 +261,7 @@ export async function markInvoiceSent(id: string): Promise<void> {
 }
 
 export async function markInvoiceCancelled(id: string): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createClient() as any
+  const supabase = createClient()
   const { error } = await supabase
     .from("invoices")
     .update({ status: "cancelled" })
@@ -278,8 +270,7 @@ export async function markInvoiceCancelled(id: string): Promise<void> {
 }
 
 export async function markInvoiceVoid(id: string): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createClient() as any
+  const supabase = createClient()
   const { error } = await supabase
     .from("invoices")
     .update({ status: "void" })
@@ -291,8 +282,7 @@ export async function recordPayment(
   invoiceId: string,
   values: PaymentFormValues
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createClient() as any
+  const supabase = createClient()
   const userId = await getUserId()
 
   const { error } = await supabase.from("payments").insert({
@@ -309,8 +299,7 @@ export async function recordPayment(
 }
 
 export async function deletePayment(paymentId: string): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createClient() as any
+  const supabase = createClient()
   const { error } = await supabase.from("payments").delete().eq("id", paymentId)
   if (error) throw error
 }
