@@ -49,9 +49,9 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
   const totalHeight = HOURS_IN_VIEW.length * HOUR_HEIGHT
   const { data: clients = [] } = useClients()
 
-  const allDayReminders = events.filter((e) => e.type === "reminder" && e.all_day)
-  const hasAllDayReminders = allDayReminders.length > 0
-  const nonReminderEvents = events.filter((e) => e.type !== "reminder")
+  const allDayEvents = events.filter((e) => e.all_day)
+  const hasAllDayEvents = allDayEvents.length > 0
+  const timedNonReminderEvents = events.filter((e) => e.type !== "reminder" && !e.all_day)
 
   function handleTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX
@@ -114,12 +114,12 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
         ))}
       </div>
 
-      {/* All-day reminders row — shown only when there are all-day reminders in the week */}
-      {hasAllDayReminders && (
+      {/* All-day events row — shown only when there are all-day events in the week */}
+      {hasAllDayEvents && (
         <div className="flex shrink-0 border-b border-border" style={{ minHeight: 32 }}>
           <div className="w-10 shrink-0" />
           {days.map((day) => {
-            const dayReminders = allDayReminders.filter((e) =>
+            const dayAllDay = allDayEvents.filter((e) =>
               isSameDay(new Date(e.start_time), day)
             )
             return (
@@ -127,9 +127,11 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
                 key={day.toISOString()}
                 className="flex-1 border-l border-border flex items-center gap-0.5 px-0.5 py-1 overflow-hidden min-w-0"
               >
-                {dayReminders.map((event) => {
-                  const colors = reminderColors(event)
-                  const linked = clients.find((c) => c.id === event.reminder_for_client_id)
+                {dayAllDay.map((event) => {
+                  const base = colorForEvent(event)
+                  const colors = { bg: base + "26", border: base, text: base + "e6" }
+                  const isReminder = event.type === "reminder"
+                  const linked = isReminder ? clients.find((c) => c.id === event.reminder_for_client_id) : null
                   const label = linked ? `${event.title} · ${linked.name}` : event.title
                   return (
                     <button
@@ -143,7 +145,7 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
                         color: colors.text,
                       }}
                     >
-                      <Bell size={8} className="shrink-0" />
+                      {isReminder && <Bell size={8} className="shrink-0" />}
                       <span className="truncate max-w-[60px]">{label}</span>
                     </button>
                   )
@@ -172,7 +174,7 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
 
           {/* Day columns */}
           {days.map((day) => {
-            const layoutEvents = layoutEventsForDay(nonReminderEvents, day)
+            const layoutEvents = layoutEventsForDay(timedNonReminderEvents, day)
             const dayTimedReminders = events.filter(
               (e) => e.type === "reminder" && !e.all_day && isSameDay(new Date(e.start_time), day)
             )

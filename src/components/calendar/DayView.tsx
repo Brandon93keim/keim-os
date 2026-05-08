@@ -65,15 +65,17 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
   const startHour = hours[0]
   const totalHeight = hours.length * HOUR_HEIGHT
 
-  // Split events: all-day reminders get a dedicated row; timed reminders get pill rendering
-  const allDayReminders = events.filter(
-    (e) => e.type === "reminder" && e.all_day && isSameDay(new Date(e.start_time), anchorDate)
+  // Split events: all-day events get a dedicated row; timed reminders get pill rendering
+  const allDayEvents = events.filter(
+    (e) => e.all_day && isSameDay(new Date(e.start_time), anchorDate)
   )
   const timedReminders = events.filter(
     (e) => e.type === "reminder" && !e.all_day && isSameDay(new Date(e.start_time), anchorDate)
   )
-  const nonReminderEvents = events.filter((e) => e.type !== "reminder")
-  const layoutEvents = layoutEventsForDay(nonReminderEvents, anchorDate)
+  const timedNonReminderEvents = events.filter(
+    (e) => e.type !== "reminder" && !e.all_day
+  )
+  const layoutEvents = layoutEventsForDay(timedNonReminderEvents, anchorDate)
 
   function computeNowTop(): number | null {
     if (!isToday(anchorDate)) return null
@@ -155,16 +157,18 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
         </button>
       )}
 
-      {/* All-day reminders row */}
-      {allDayReminders.length > 0 && (
+      {/* All-day events row */}
+      {allDayEvents.length > 0 && (
         <div
           className="shrink-0 flex items-center gap-1.5 px-2 border-b border-border overflow-x-auto"
           style={{ height: 32 }}
         >
           <div className="w-10 shrink-0" />
-          {allDayReminders.map((event) => {
-            const colors = reminderColors(event)
-            const linked = clients.find((c) => c.id === event.reminder_for_client_id)
+          {allDayEvents.map((event) => {
+            const base = colorForEvent(event)
+            const colors = { bg: base + "26", border: base, text: base + "e6" }
+            const isReminder = event.type === "reminder"
+            const linked = isReminder ? clients.find((c) => c.id === event.reminder_for_client_id) : null
             const label = linked ? `${event.title} · ${linked.name}` : event.title
             return (
               <button
@@ -178,7 +182,7 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
                   color: colors.text,
                 }}
               >
-                <Bell size={10} className="shrink-0" />
+                {isReminder && <Bell size={10} className="shrink-0" />}
                 <span className="truncate max-w-[120px]">{label}</span>
               </button>
             )

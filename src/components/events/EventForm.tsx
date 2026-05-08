@@ -208,6 +208,28 @@ export function EventForm({
 
   const isSubmitting = form.formState.isSubmitting
 
+  function setAllDayWithTimes(allDay: boolean) {
+    const currentStart = form.getValues("start_time")
+    if (currentStart instanceof Date) {
+      if (allDay) {
+        const dayStart = new Date(currentStart)
+        dayStart.setHours(0, 0, 0, 0)
+        const dayEnd = new Date(currentStart)
+        dayEnd.setHours(23, 59, 59, 999)
+        form.setValue("start_time", dayStart)
+        form.setValue("end_time", dayEnd)
+      } else {
+        const newStart = new Date(currentStart)
+        newStart.setHours(9, 0, 0, 0)
+        const newEnd = new Date(currentStart)
+        newEnd.setHours(10, 0, 0, 0)
+        form.setValue("start_time", newStart)
+        form.setValue("end_time", newEnd)
+      }
+    }
+    form.setValue("all_day", allDay)
+  }
+
   const showBusiness = watchedType === "meeting" || watchedType === "job" || watchedType === "reminder"
   const showClient = watchedType === "meeting" || watchedType === "job"
   const showReminderClient = watchedType === "reminder"
@@ -297,7 +319,7 @@ export function EventForm({
                       onClick={() => {
                         field.onChange(value)
                         if (value === "reminder" && !userToggledAllDay.current) {
-                          form.setValue("all_day", true)
+                          setAllDayWithTimes(true)
                         }
                         if (value === "personal" || value === "golf") {
                           form.setValue("business_id", null)
@@ -545,7 +567,7 @@ export function EventForm({
                   aria-checked={field.value}
                   onClick={() => {
                     userToggledAllDay.current = true
-                    field.onChange(!field.value)
+                    setAllDayWithTimes(!field.value)
                   }}
                   className={cn(
                     "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
