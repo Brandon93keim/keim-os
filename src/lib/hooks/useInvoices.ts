@@ -15,6 +15,7 @@ import {
   deletePayment as deletePaymentQuery,
   listJobsForClientAndBusiness,
 } from "@/lib/queries/invoices"
+import { getUnbilledJobs } from "@/lib/queries/jobs"
 import type { InvoiceFormValues, PaymentFormValues } from "@/lib/validations/invoice"
 
 export function useInvoices() {
@@ -40,12 +41,21 @@ export function useJobsForLineItem(clientId: string | null, businessId: string |
   })
 }
 
+export function useUnbilledJobs() {
+  return useQuery({
+    queryKey: ["unbilled-jobs"],
+    queryFn: getUnbilledJobs,
+    staleTime: 30_000,
+  })
+}
+
 export function useCreateInvoice() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (values: InvoiceFormValues) => createInvoice(values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] })
+      queryClient.invalidateQueries({ queryKey: ["unbilled-jobs"] })
       toast.success("Invoice created")
     },
     onError: (err: Error) => {
@@ -62,6 +72,7 @@ export function useUpdateInvoice() {
     onSuccess: (_data, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] })
       queryClient.invalidateQueries({ queryKey: ["invoices", id] })
+      queryClient.invalidateQueries({ queryKey: ["unbilled-jobs"] })
       toast.success("Invoice saved")
     },
     onError: (err: Error) => {
@@ -76,6 +87,7 @@ export function useDeleteInvoice() {
     mutationFn: (id: string) => deleteInvoiceQuery(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] })
+      queryClient.invalidateQueries({ queryKey: ["unbilled-jobs"] })
       toast.success("Invoice deleted")
     },
     onError: (err: Error) => {
@@ -106,6 +118,7 @@ export function useMarkInvoiceCancelled() {
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] })
       queryClient.invalidateQueries({ queryKey: ["invoices", id] })
+      queryClient.invalidateQueries({ queryKey: ["unbilled-jobs"] })
       toast.success("Invoice cancelled")
     },
     onError: (err: Error) => {
@@ -121,6 +134,7 @@ export function useMarkInvoiceVoid() {
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] })
       queryClient.invalidateQueries({ queryKey: ["invoices", id] })
+      queryClient.invalidateQueries({ queryKey: ["unbilled-jobs"] })
       toast.success("Invoice voided")
     },
     onError: (err: Error) => {

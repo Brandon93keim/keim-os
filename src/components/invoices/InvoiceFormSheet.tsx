@@ -10,14 +10,16 @@ import {
 import { useMarkInvoiceSent } from "@/lib/hooks/useInvoices"
 import { InvoiceForm } from "./InvoiceForm"
 import type { Invoice } from "@/lib/queries/invoices"
+import type { UnbilledJob } from "@/lib/queries/jobs"
 
 interface Props {
   open: boolean
   onClose: () => void
   invoice?: Invoice | null
+  prefillJob?: UnbilledJob | null
 }
 
-export function InvoiceFormSheet({ open, onClose, invoice }: Props) {
+export function InvoiceFormSheet({ open, onClose, invoice, prefillJob }: Props) {
   const router = useRouter()
   const markSent = useMarkInvoiceSent()
 
@@ -52,6 +54,7 @@ export function InvoiceFormSheet({ open, onClose, invoice }: Props) {
         </SheetHeader>
         <InvoiceForm
           invoice={invoice}
+          prefillJob={invoice ? null : prefillJob}
           onSuccess={handleSuccess}
           onCancel={onClose}
         />

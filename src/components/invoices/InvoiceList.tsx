@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { Plus, Receipt, Search } from "lucide-react"
 import { isPast, parseISO } from "date-fns"
-import { useInvoices } from "@/lib/hooks/useInvoices"
+import { useInvoices, useUnbilledJobs } from "@/lib/hooks/useInvoices"
 import { getBusinessById } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,9 +18,11 @@ import {
 } from "@/components/ui/select"
 import { InvoiceCard } from "./InvoiceCard"
 import { InvoiceFormSheet } from "./InvoiceFormSheet"
+import { UnbilledJobsList } from "./UnbilledJobsList"
 import type { InvoiceSummary } from "@/lib/queries/invoices"
+import type { UnbilledJob } from "@/lib/queries/jobs"
 
-type StatusFilter = "all" | "draft" | "sent" | "paid" | "overdue"
+type StatusFilter = "all" | "unbilled" | "draft" | "sent" | "paid" | "overdue"
 type SortKey = "issue_date" | "due_date" | "amount" | "status"
 
 function ListSkeleton() {
@@ -66,7 +68,7 @@ function filterAndSort(
 ): InvoiceSummary[] {
   let result = [...invoices]
 
-  if (status !== "all") {
+  if (status !== "all" && status !== "unbilled") {
     if (status === "overdue") {
       result = result.filter(
         (inv) => inv.status === "sent" && isPast(parseISO(inv.due_date))
@@ -104,17 +106,33 @@ function filterAndSort(
 
 export function InvoiceList() {
   const { data: invoices, isLoading, error } = useInvoices()
+  const { data: unbilledJobs } = useUnbilledJobs()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [sort, setSort] = useState<SortKey>("issue_date")
   const [createOpen, setCreateOpen] = useState(false)
+  const [prefillJob, setPrefillJob] = useState<UnbilledJob | null>(null)
+
+  const unbilledCount = unbilledJobs?.length ?? 0
 
   const filtered = useMemo(
     () => filterAndSort(invoices ?? [], search, statusFilter, sort),
     [invoices, search, statusFilter, sort]
   )
 
-  const isFiltered = search.trim().length > 0 || statusFilter !== "all"
+  const isFiltered = search.trim().length > 0 || (statusFilter !== "all" && statusFilter !== "unbilled")
+
+  function handleClose() {
+    setCreateOpen(false)
+    setPrefillJob(null)
+  }
+
+  function handleCreateInvoiceFromJob(job: UnbilledJob) {
+    setPrefillJob(job)
+    setCreateOpen(true)
+  }
+
+  const isUnbilledTab = statusFilter === "unbilled"
 
   return (
     <>
@@ -128,72 +146,89 @@ export function InvoiceList() {
           </Button>
         </div>
 
-        {/* Search */}
-        <div className="px-4 pb-3">
-          <div className="relative">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-            />
-            <Input
-              placeholder="Search number, client, business…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-              autoComplete="off"
-            />
+        {/* Search — hidden on Unbilled tab */}
+        {!isUnbilledTab && (
+          <div className="px-4 pb-3">
+            <div className="relative">
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+              />
+              <Input
+                placeholder="Search number, client, business…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+                autoComplete="off"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Filters row */}
         <div className="px-4 pb-3 flex gap-2">
           <Tabs
             value={statusFilter}
             onValueChange={(v) => setStatusFilter(v as StatusFilter)}
-            className="flex-1"
+            className="flex-1 min-w-0"
           >
-            <TabsList className="w-full">
-              <TabsTrigger value="all" className="flex-1">All</TabsTrigger>
-              <TabsTrigger value="draft" className="flex-1">Draft</TabsTrigger>
-              <TabsTrigger value="sent" className="flex-1">Sent</TabsTrigger>
-              <TabsTrigger value="paid" className="flex-1">Paid</TabsTrigger>
-              <TabsTrigger value="overdue" className="flex-1">Overdue</TabsTrigger>
-            </TabsList>
+            <div className="overflow-x-auto">
+              <TabsList className="min-w-full w-max">
+                <TabsTrigger value="all">All</TabsTrigger>
+                <TabsTrigger value="unbilled">
+                  {unbilledCount > 0 ? `Unbilled · ${unbilledCount}` : "Unbilled"}
+                </TabsTrigger>
+                <TabsTrigger value="draft">Draft</TabsTrigger>
+                <TabsTrigger value="sent">Sent</TabsTrigger>
+                <TabsTrigger value="paid">Paid</TabsTrigger>
+                <TabsTrigger value="overdue">Overdue</TabsTrigger>
+              </TabsList>
+            </div>
           </Tabs>
-          <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-            <SelectTrigger className="w-[120px] shrink-0 h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="issue_date">Issue date</SelectItem>
-              <SelectItem value="due_date">Due date</SelectItem>
-              <SelectItem value="amount">Amount</SelectItem>
-              <SelectItem value="status">Status</SelectItem>
-            </SelectContent>
-          </Select>
+
+          {/* Sort — hidden on Unbilled tab */}
+          {!isUnbilledTab && (
+            <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+              <SelectTrigger className="w-[120px] shrink-0 h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="issue_date">Issue date</SelectItem>
+                <SelectItem value="due_date">Due date</SelectItem>
+                <SelectItem value="amount">Amount</SelectItem>
+                <SelectItem value="status">Status</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
 
       {/* Body */}
       <div className="py-3">
-        {isLoading && <ListSkeleton />}
+        {isUnbilledTab ? (
+          <UnbilledJobsList onCreateInvoice={handleCreateInvoiceFromJob} />
+        ) : (
+          <>
+            {isLoading && <ListSkeleton />}
 
-        {error && (
-          <div className="px-4 py-8 text-center text-sm text-destructive">
-            Failed to load invoices. Pull to refresh.
-          </div>
-        )}
+            {error && (
+              <div className="px-4 py-8 text-center text-sm text-destructive">
+                Failed to load invoices. Pull to refresh.
+              </div>
+            )}
 
-        {!isLoading && !error && filtered.length === 0 && (
-          <EmptyState onNew={() => setCreateOpen(true)} filtered={isFiltered} />
-        )}
+            {!isLoading && !error && filtered.length === 0 && (
+              <EmptyState onNew={() => setCreateOpen(true)} filtered={isFiltered} />
+            )}
 
-        {!isLoading && !error && filtered.length > 0 && (
-          <div className="space-y-3 px-4">
-            {filtered.map((inv) => (
-              <InvoiceCard key={inv.id} invoice={inv} />
-            ))}
-          </div>
+            {!isLoading && !error && filtered.length > 0 && (
+              <div className="space-y-3 px-4">
+                {filtered.map((inv) => (
+                  <InvoiceCard key={inv.id} invoice={inv} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -213,7 +248,11 @@ export function InvoiceList() {
         <Plus size={24} />
       </button>
 
-      <InvoiceFormSheet open={createOpen} onClose={() => setCreateOpen(false)} />
+      <InvoiceFormSheet
+        open={createOpen}
+        onClose={handleClose}
+        prefillJob={prefillJob}
+      />
     </>
   )
 }

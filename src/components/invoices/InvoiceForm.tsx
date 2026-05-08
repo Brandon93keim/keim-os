@@ -40,14 +40,16 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import type { Invoice } from "@/lib/queries/invoices"
+import type { UnbilledJob } from "@/lib/queries/jobs"
 
 interface Props {
   invoice?: Invoice | null
+  prefillJob?: UnbilledJob | null
   onSuccess: (invoiceId: string, markSent?: boolean) => void
   onCancel: () => void
 }
 
-function buildDefaults(invoice?: Invoice | null): InvoiceFormInput {
+function buildDefaults(invoice?: Invoice | null, prefillJob?: UnbilledJob | null): InvoiceFormInput {
   if (invoice) {
     return {
       business_id: invoice.business_id as (typeof BUSINESS_IDS)[number],
@@ -70,6 +72,28 @@ function buildDefaults(invoice?: Invoice | null): InvoiceFormInput {
   }
 
   const today = new Date()
+
+  if (prefillJob) {
+    return {
+      business_id: prefillJob.business_id as (typeof BUSINESS_IDS)[number],
+      client_id: prefillJob.client_id ?? "",
+      issue_date: today,
+      due_date: addDays(today, 30),
+      tax_rate: 0,
+      discount_amount: 0,
+      notes: "",
+      terms: DEFAULT_TERMS,
+      email_address: "",
+      line_items: [{
+        id: undefined,
+        event_id: prefillJob.id,
+        description: prefillJob.title,
+        quantity: 1,
+        unit_price: prefillJob.job_total_amount ?? 0,
+      }],
+    }
+  }
+
   return {
     business_id: BUSINESSES[0].id as (typeof BUSINESS_IDS)[number],
     client_id: "",
@@ -84,14 +108,14 @@ function buildDefaults(invoice?: Invoice | null): InvoiceFormInput {
   }
 }
 
-export function InvoiceForm({ invoice, onSuccess, onCancel }: Props) {
+export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props) {
   const createInvoice = useCreateInvoice()
   const updateInvoice = useUpdateInvoice()
   const { data: clients = [] } = useClients()
 
   const form = useForm<InvoiceFormInput>({
     resolver: zodResolver(invoiceFormSchema),
-    defaultValues: buildDefaults(invoice),
+    defaultValues: buildDefaults(invoice, prefillJob),
     shouldFocusError: false,
   })
 

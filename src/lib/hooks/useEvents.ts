@@ -42,6 +42,7 @@ export function useCreateEvent() {
     mutationFn: (values: EventFormValues) => createEvent(values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events"] })
+      queryClient.invalidateQueries({ queryKey: ["unbilled-jobs"] })
       toast.success("Event created")
     },
     onError: (err: Error) => {
@@ -57,6 +58,7 @@ export function useUpdateEvent() {
       updateEventQuery(id, values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events"] })
+      queryClient.invalidateQueries({ queryKey: ["unbilled-jobs"] })
       toast.success("Event saved")
     },
     onError: (err: Error) => {
@@ -71,6 +73,7 @@ export function useDeleteEvent() {
     mutationFn: (id: string) => deleteEventQuery(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["events"] })
+      queryClient.invalidateQueries({ queryKey: ["unbilled-jobs"] })
       toast.success("Event deleted")
     },
     onError: (err: Error) => {
