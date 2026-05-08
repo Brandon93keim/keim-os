@@ -70,6 +70,7 @@ const EVENT_TYPES = [
   { value: "meeting", label: "Meeting" },
   { value: "personal", label: "Personal" },
   { value: "reminder", label: "Reminder" },
+  { value: "golf", label: "Golf" },
 ] as const
 
 const MEETING_PURPOSES = [
@@ -295,10 +296,11 @@ export function EventForm({
                         if (value === "reminder" && !userToggledAllDay.current) {
                           form.setValue("all_day", true)
                         }
-                        if (value === "personal") {
+                        if (value === "personal" || value === "golf") {
                           form.setValue("business_id", null)
                           form.setValue("client_id", null)
                           form.setValue("meeting_purpose", null)
+                          form.setValue("reminder_for_client_id", null)
                         }
                         if (value !== "meeting") {
                           form.setValue("meeting_purpose", null)

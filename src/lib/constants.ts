@@ -60,6 +60,11 @@ export const BUSINESS_PREFIXES: Record<string, string> = {
   "keim-time":                   "KTME",
 }
 
+export const EVENT_TYPE_COLORS: Record<string, string> = {
+  golf: "#16A34A",     // green-600
+  personal: "#64748B", // slate-500
+}
+
 export function getBusinessById(id: string): Business | undefined {
   return BUSINESSES.find((b) => b.id === id)
 }
