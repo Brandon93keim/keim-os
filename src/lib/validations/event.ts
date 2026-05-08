@@ -8,6 +8,12 @@ export const meetingPurposeSchema = z.enum([
   "internal",
   "personal",
 ])
+export const golfPurposeSchema = z.enum([
+  "workout",
+  "practice",
+  "practice_round",
+  "tournament",
+])
 
 export const eventFormSchema = z
   .object({
@@ -16,6 +22,7 @@ export const eventFormSchema = z
     business_id: z.enum(BUSINESS_IDS).nullable(),
     client_id: z.string().uuid().nullable(),
     meeting_purpose: meetingPurposeSchema.nullable(),
+    golf_purpose: golfPurposeSchema.nullable(),
     start_time: z.date(),
     end_time: z.date(),
     all_day: z.boolean().default(false),

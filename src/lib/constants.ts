@@ -60,6 +60,13 @@ export const BUSINESS_PREFIXES: Record<string, string> = {
   "keim-time":                   "KTME",
 }
 
+export const GOLF_PURPOSES = [
+  { value: "workout",        label: "Workout",        color: "#DC2626", textColor: "#FFFFFF" },
+  { value: "practice",       label: "Practice",       color: "#0EA5E9", textColor: "#FFFFFF" },
+  { value: "practice_round", label: "Practice Round", color: "#16A34A", textColor: "#FFFFFF" },
+  { value: "tournament",     label: "Tournament",     color: "#EAB308", textColor: "#000000" },
+] as const
+
 export const EVENT_TYPE_COLORS: Record<string, string> = {
   golf: "#16A34A",     // green-600
   personal: "#64748B", // slate-500

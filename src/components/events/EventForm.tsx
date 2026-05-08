@@ -10,7 +10,7 @@ import {
   type EventFormValues,
   type EventFormInput,
 } from "@/lib/validations/event"
-import { BUSINESSES } from "@/lib/constants"
+import { BUSINESSES, GOLF_PURPOSES } from "@/lib/constants"
 import { BUSINESS_IDS } from "@/lib/validations/client"
 import {
   useCreateEvent,
@@ -106,6 +106,7 @@ function buildDefaultValues(event?: CalEvent | null, defaults?: FormDefaults): E
       business_id: (event.business_id as (typeof BUSINESS_IDS)[number] | null) ?? null,
       client_id: event.client_id ?? null,
       meeting_purpose: (event.meeting_purpose as EventFormValues["meeting_purpose"]) ?? null,
+      golf_purpose: (event.golf_purpose as EventFormValues["golf_purpose"]) ?? null,
       start_time: start,
       end_time: end,
       all_day: event.all_day,
@@ -128,6 +129,7 @@ function buildDefaultValues(event?: CalEvent | null, defaults?: FormDefaults): E
     business_id: null,
     client_id: null,
     meeting_purpose: null,
+    golf_purpose: null,
     start_time: start,
     end_time: end,
     all_day: false,
@@ -210,6 +212,7 @@ export function EventForm({
   const showClient = watchedType === "meeting" || watchedType === "job"
   const showReminderClient = watchedType === "reminder"
   const showPurpose = watchedType === "meeting"
+  const showGolfPurpose = watchedType === "golf"
   const showJobAmount = watchedType === "job"
   const isJob = watchedType === "job"
 
@@ -305,6 +308,9 @@ export function EventForm({
                         if (value !== "meeting") {
                           form.setValue("meeting_purpose", null)
                         }
+                        if (value !== "golf") {
+                          form.setValue("golf_purpose", null)
+                        }
                         if (value !== "job") {
                           form.setValue("job_total_amount", null)
                         }
@@ -355,6 +361,39 @@ export function EventForm({
               </FormItem>
             )}
           />
+
+          {/* Golf purpose */}
+          {showGolfPurpose && (
+            <FormField
+              control={form.control}
+              name="golf_purpose"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Purpose</FormLabel>
+                  <div className="flex flex-wrap gap-2">
+                    {GOLF_PURPOSES.map((p) => {
+                      const selected = field.value === p.value
+                      return (
+                        <button
+                          key={p.value}
+                          type="button"
+                          onClick={() => field.onChange(selected ? null : p.value)}
+                          className={cn(
+                            "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors min-h-[36px]",
+                            selected ? "border-transparent" : "border-border text-muted-foreground hover:text-foreground"
+                          )}
+                          style={selected ? { backgroundColor: p.color, color: p.textColor } : {}}
+                        >
+                          {p.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
           {/* Business (single select chips) */}
           {showBusiness && (

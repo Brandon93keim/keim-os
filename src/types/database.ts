@@ -185,6 +185,7 @@ export type Database = {
           created_at: string
           description: string | null
           end_time: string
+          golf_purpose: string | null
           id: string
           job_number: string | null
           job_total_amount: number | null
@@ -210,6 +211,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_time: string
+          golf_purpose?: string | null
           id?: string
           job_number?: string | null
           job_total_amount?: number | null
@@ -235,6 +237,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_time?: string
+          golf_purpose?: string | null
           id?: string
           job_number?: string | null
           job_total_amount?: number | null
