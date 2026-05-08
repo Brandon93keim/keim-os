@@ -3,7 +3,7 @@
 import { useRef } from "react"
 import { isSameDay, isToday, isSameMonth, format } from "date-fns"
 import { getCalendarDays } from "@/lib/date"
-import { BUSINESSES } from "@/lib/constants"
+import { BUSINESSES, colorForEvent } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import type { CalEvent } from "@/lib/hooks/useEvents"
 
@@ -25,14 +25,14 @@ function getEventsForDay(events: CalEvent[], day: Date): CalEvent[] {
   return events.filter((e) => isSameDay(new Date(e.start_time), day))
 }
 
-function getBusinessStripes(events: CalEvent[]) {
+function getEventStripes(events: CalEvent[]) {
   const seen = new Set<string>()
   const stripes: Array<{ color: string }> = []
   for (const e of events) {
-    if (e.business_id && !seen.has(e.business_id)) {
-      seen.add(e.business_id)
-      const biz = BUSINESSES.find((b) => b.id === e.business_id)
-      if (biz) stripes.push({ color: biz.color })
+    const color = colorForEvent(e)
+    if (!seen.has(color)) {
+      seen.add(color)
+      stripes.push({ color })
     }
   }
   return stripes
@@ -113,7 +113,7 @@ export function MonthView({ anchorDate, selectedDate, events, onDayTap, onPrev, 
           const visibleDots = dots.slice(0, MAX_DOTS)
           const extraDots = dots.length > MAX_DOTS ? dots.length - MAX_DOTS : 0
 
-          const stripes = getBusinessStripes(nonReminderEvents)
+          const stripes = getEventStripes(nonReminderEvents)
           const visibleStripes = stripes.slice(0, MAX_STRIPES)
           const extraStripes = stripes.length > MAX_STRIPES ? stripes.length - MAX_STRIPES : 0
 

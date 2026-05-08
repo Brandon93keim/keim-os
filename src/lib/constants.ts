@@ -79,3 +79,25 @@ export function getBusinessById(id: string): Business | undefined {
 export function getBusinessPrefix(id: string): string {
   return BUSINESS_PREFIXES[id] ?? id.toUpperCase().slice(0, 4)
 }
+
+type EventColorInput = {
+  business_id: string | null
+  type: string
+  golf_purpose?: string | null
+}
+
+export function colorForEvent(event: EventColorInput): string {
+  if (event.business_id) {
+    const biz = BUSINESSES.find((b) => b.id === event.business_id)
+    if (biz) return biz.color
+  }
+  if (event.type === "golf" && event.golf_purpose) {
+    const p = GOLF_PURPOSES.find((g) => g.value === event.golf_purpose)
+    if (p) return p.color
+  }
+  if (event.type === "golf") return "#16A34A"
+  if (event.type in EVENT_TYPE_COLORS) {
+    return EVENT_TYPE_COLORS[event.type]
+  }
+  return "#9CA3AF"
+}

@@ -4,7 +4,7 @@ import { useRef } from "react"
 import { format, isToday, isSameDay } from "date-fns"
 import { Bell, Repeat } from "lucide-react"
 import { getWeekDays, HOURS_IN_VIEW } from "@/lib/date"
-import { BUSINESSES } from "@/lib/constants"
+import { BUSINESSES, colorForEvent } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { useClients } from "@/lib/hooks/useClients"
 import { layoutEventsForDay, topForTime, heightForEvent, HOUR_HEIGHT } from "./eventLayout"
@@ -22,23 +22,23 @@ function eventColor(event: CalEvent): { bg: string; border: string; text: string
   if (event.color_override) {
     return { bg: event.color_override + "d9", border: event.color_override, text: "#fff" }
   }
-  const biz = BUSINESSES.find((b) => b.id === event.business_id)
-  if (biz) {
-    return {
-      bg: biz.color + "d9",
-      border: biz.color,
-      text: biz.textColor === "white" ? "#fff" : "#000",
+  if (event.business_id) {
+    const biz = BUSINESSES.find((b) => b.id === event.business_id)
+    if (biz) {
+      return {
+        bg: biz.color + "d9",
+        border: biz.color,
+        text: biz.textColor === "white" ? "#fff" : "#000",
+      }
     }
   }
-  return { bg: "#475569d9", border: "#475569", text: "#fff" }
+  const base = colorForEvent(event)
+  return { bg: base + "d9", border: base, text: "#fff" }
 }
 
 function reminderColors(event: CalEvent): { bg: string; border: string; text: string } {
-  const biz = BUSINESSES.find((b) => b.id === event.business_id)
-  if (biz) {
-    return { bg: biz.color + "26", border: biz.color, text: biz.color + "e6" }
-  }
-  return { bg: "#f8fafc", border: "#cbd5e1", text: "#475569" }
+  const base = colorForEvent(event)
+  return { bg: base + "26", border: base, text: base + "e6" }
 }
 
 export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Props) {
