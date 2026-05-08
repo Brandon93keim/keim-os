@@ -119,9 +119,13 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
         <div className="flex shrink-0 border-b border-border" style={{ minHeight: 32 }}>
           <div className="w-10 shrink-0" />
           {days.map((day) => {
-            const dayAllDay = allDayEvents.filter((e) =>
-              isSameDay(new Date(e.start_time), day)
-            )
+            const wDayStart = new Date(day); wDayStart.setHours(0, 0, 0, 0)
+            const wDayEnd = new Date(day); wDayEnd.setHours(23, 59, 59, 999)
+            const dayAllDay = allDayEvents.filter((e) => {
+              const start = new Date(e.start_time)
+              const end = new Date(e.end_time)
+              return start <= wDayEnd && end >= wDayStart
+            })
             return (
               <div
                 key={day.toISOString()}
@@ -175,9 +179,14 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
           {/* Day columns */}
           {days.map((day) => {
             const layoutEvents = layoutEventsForDay(timedNonReminderEvents, day)
-            const dayTimedReminders = events.filter(
-              (e) => e.type === "reminder" && !e.all_day && isSameDay(new Date(e.start_time), day)
-            )
+            const colDayStart = new Date(day); colDayStart.setHours(0, 0, 0, 0)
+            const colDayEnd = new Date(day); colDayEnd.setHours(23, 59, 59, 999)
+            const dayTimedReminders = events.filter((e) => {
+              if (e.type !== "reminder" || e.all_day) return false
+              const start = new Date(e.start_time)
+              const end = new Date(e.end_time)
+              return start <= colDayEnd && end >= colDayStart
+            })
 
             return (
               <div key={day.toISOString()} className="flex-1 relative border-l border-border">
@@ -199,8 +208,15 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
                 {layoutEvents.map((event) => {
                   const start = new Date(event.start_time)
                   const end = new Date(event.end_time)
-                  const top = topForTime(start)
-                  const height = heightForEvent(start, end)
+                  const gridStart = new Date(day)
+                  gridStart.setHours(HOURS_IN_VIEW[0], 0, 0, 0)
+                  const renderStart = event.effectiveStart.getTime() < gridStart.getTime()
+                    ? gridStart
+                    : event.effectiveStart
+                  const top = topForTime(renderStart)
+                  const height = heightForEvent(renderStart, event.effectiveEnd)
+                  const continuesBefore = event.continuesBefore || event.effectiveStart.getTime() < gridStart.getTime()
+                  const continuesAfter = event.continuesAfter
                   const colors = eventColor(event)
                   const width = `${100 / event.cols}%`
                   const left = `${(event.col / event.cols) * 100}%`
@@ -222,7 +238,10 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
                         color: colors.text,
                       }}
                     >
-                      <div className="px-0.5 pt-0.5 relative">
+                      {continuesBefore && (
+                        <div className="absolute top-0 inset-x-0 flex items-center justify-center h-2.5 text-[6px] opacity-70 z-10" style={{ backgroundColor: colors.bg }}>↑</div>
+                      )}
+                      <div className="px-0.5 pt-0.5 relative" style={continuesBefore ? { paddingTop: '0.75rem' } : undefined}>
                         {(event.is_recurring_instance || event.rrule) && (
                           <Repeat
                             size={8}
@@ -236,6 +255,9 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
                           {format(start, "h:mma")}
                         </div>
                       </div>
+                      {continuesAfter && (
+                        <div className="absolute bottom-0 inset-x-0 flex items-center justify-center h-2.5 text-[6px] opacity-70" style={{ backgroundColor: colors.bg }}>↓</div>
+                      )}
                     </button>
                   )
                 })}

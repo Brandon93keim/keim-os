@@ -189,6 +189,7 @@ export function EventForm({
   const watchedDate = watchedStartTime instanceof Date ? watchedStartTime : new Date(watchedStartTime)
 
   const [calOpen, setCalOpen] = useState(false)
+  const [endCalOpen, setEndCalOpen] = useState(false)
   const [recurrenceOpen, setRecurrenceOpen] = useState(false)
   const [recurrence, setRecurrence] = useState<RecurrenceConfig | null>(() => {
     // Single-occurrence edits are detached overrides — no recurrence.
@@ -209,23 +210,31 @@ export function EventForm({
   const isSubmitting = form.formState.isSubmitting
 
   function setAllDayWithTimes(allDay: boolean) {
-    const currentStart = form.getValues("start_time")
-    if (currentStart instanceof Date) {
-      if (allDay) {
-        const dayStart = new Date(currentStart)
-        dayStart.setHours(0, 0, 0, 0)
-        const dayEnd = new Date(currentStart)
-        dayEnd.setHours(23, 59, 59, 999)
-        form.setValue("start_time", dayStart)
-        form.setValue("end_time", dayEnd)
-      } else {
-        const newStart = new Date(currentStart)
-        newStart.setHours(9, 0, 0, 0)
-        const newEnd = new Date(currentStart)
-        newEnd.setHours(10, 0, 0, 0)
-        form.setValue("start_time", newStart)
-        form.setValue("end_time", newEnd)
-      }
+    const start = form.getValues("start_time")
+    const end = form.getValues("end_time")
+    if (!(start instanceof Date) || !(end instanceof Date)) {
+      form.setValue("all_day", allDay)
+      return
+    }
+    const sameDay =
+      start.getFullYear() === end.getFullYear() &&
+      start.getMonth() === end.getMonth() &&
+      start.getDate() === end.getDate()
+    if (allDay) {
+      const newStart = new Date(start); newStart.setHours(0, 0, 0, 0)
+      const newEnd = new Date(end); newEnd.setHours(23, 59, 59, 999)
+      form.setValue("start_time", newStart)
+      form.setValue("end_time", newEnd)
+    } else if (sameDay) {
+      const newStart = new Date(start); newStart.setHours(9, 0, 0, 0)
+      const newEnd = new Date(start); newEnd.setHours(10, 0, 0, 0)
+      form.setValue("start_time", newStart)
+      form.setValue("end_time", newEnd)
+    } else {
+      const newStart = new Date(start); newStart.setHours(9, 0, 0, 0)
+      const newEnd = new Date(end); newEnd.setHours(17, 0, 0, 0)
+      form.setValue("start_time", newStart)
+      form.setValue("end_time", newEnd)
     }
     form.setValue("all_day", allDay)
   }
@@ -585,91 +594,137 @@ export function EventForm({
             )}
           />
 
-          {/* Date picker */}
-          <FormField
-            control={form.control}
-            name="start_time"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Date *</FormLabel>
-                <Popover open={calOpen} onOpenChange={setCalOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start font-normal">
-                      {field.value instanceof Date
-                        ? formatDateValue(field.value)
-                        : "Pick a date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={field.value instanceof Date ? field.value : undefined}
-                      onSelect={(date) => {
-                        if (!date) return
-                        const currentStart = field.value instanceof Date ? field.value : new Date()
-                        const newStart = new Date(date)
-                        newStart.setHours(currentStart.getHours(), currentStart.getMinutes(), 0, 0)
-                        field.onChange(newStart)
-
-                        const currentEnd = form.getValues("end_time")
-                        const durationMs = (currentEnd instanceof Date ? currentEnd : new Date()).getTime() - currentStart.getTime()
-                        const newEnd = new Date(newStart.getTime() + Math.max(durationMs, 3600_000))
-                        form.setValue("end_time", newEnd)
-                        setCalOpen(false)
-                      }}
-                    />
-                  </PopoverContent>
-                </Popover>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Start / End time */}
-          {!watchedAllDay && (
-            <div className="grid grid-cols-2 gap-3">
+          {/* Starts / Ends */}
+          <div className="space-y-2">
+            {/* Starts row */}
+            <div className="flex items-center gap-2">
+              <Label className="w-14 shrink-0">Starts</Label>
               <FormField
                 control={form.control}
                 name="start_time"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Start *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="time"
-                        value={field.value instanceof Date ? timeToHHMM(field.value) : ""}
-                        onChange={(e) => {
-                          const base = field.value instanceof Date ? field.value : new Date()
-                          field.onChange(setTimeOnDate(base, e.target.value))
-                        }}
-                      />
-                    </FormControl>
+                  <FormItem className="flex-1 min-w-0 space-y-0">
+                    <Popover open={calOpen} onOpenChange={setCalOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start font-normal h-9">
+                          {field.value instanceof Date ? formatDateValue(field.value) : "Pick a date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value instanceof Date ? field.value : undefined}
+                          onSelect={(date) => {
+                            if (!date) return
+                            const oldStart = field.value instanceof Date ? field.value : new Date()
+                            const newStart = new Date(date)
+                            newStart.setHours(oldStart.getHours(), oldStart.getMinutes(), 0, 0)
+                            field.onChange(newStart)
+                            const currentEnd = form.getValues("end_time")
+                            if (currentEnd instanceof Date && currentEnd.getTime() < newStart.getTime()) {
+                              const startDelta = newStart.getTime() - oldStart.getTime()
+                              form.setValue("end_time", new Date(currentEnd.getTime() + startDelta))
+                            }
+                            setCalOpen(false)
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              {!watchedAllDay && (
+                <FormField
+                  control={form.control}
+                  name="start_time"
+                  render={({ field }) => (
+                    <FormItem className="w-24 shrink-0 space-y-0">
+                      <FormControl>
+                        <Input
+                          type="time"
+                          className="h-9"
+                          value={field.value instanceof Date ? timeToHHMM(field.value) : ""}
+                          onChange={(e) => {
+                            const base = field.value instanceof Date ? field.value : new Date()
+                            field.onChange(setTimeOnDate(base, e.target.value))
+                          }}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
+            </div>
+
+            {/* Ends row */}
+            <div className="flex items-center gap-2">
+              <Label className="w-14 shrink-0">Ends</Label>
               <FormField
                 control={form.control}
                 name="end_time"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>End *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="time"
-                        value={field.value instanceof Date ? timeToHHMM(field.value) : ""}
-                        onChange={(e) => {
-                          const base = watchedDate
-                          field.onChange(setTimeOnDate(base, e.target.value))
-                        }}
-                      />
-                    </FormControl>
+                  <FormItem className="flex-1 min-w-0 space-y-0">
+                    <Popover open={endCalOpen} onOpenChange={setEndCalOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start font-normal h-9">
+                          {field.value instanceof Date ? formatDateValue(field.value) : "Pick a date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value instanceof Date ? field.value : undefined}
+                          onSelect={(date) => {
+                            if (!date) return
+                            const currentEnd = field.value instanceof Date ? field.value : new Date()
+                            const newEnd = new Date(date)
+                            newEnd.setHours(
+                              currentEnd.getHours(),
+                              currentEnd.getMinutes(),
+                              currentEnd.getSeconds(),
+                              currentEnd.getMilliseconds()
+                            )
+                            field.onChange(newEnd)
+                            setEndCalOpen(false)
+                          }}
+                          disabled={(date) => {
+                            const start = form.getValues("start_time")
+                            if (!(start instanceof Date)) return false
+                            const startDay = new Date(start); startDay.setHours(0, 0, 0, 0)
+                            const checkDay = new Date(date); checkDay.setHours(0, 0, 0, 0)
+                            return checkDay.getTime() < startDay.getTime()
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              {!watchedAllDay && (
+                <FormField
+                  control={form.control}
+                  name="end_time"
+                  render={({ field }) => (
+                    <FormItem className="w-24 shrink-0 space-y-0">
+                      <FormControl>
+                        <Input
+                          type="time"
+                          className="h-9"
+                          value={field.value instanceof Date ? timeToHHMM(field.value) : ""}
+                          onChange={(e) => {
+                            const base = field.value instanceof Date ? field.value : new Date()
+                            field.onChange(setTimeOnDate(base, e.target.value))
+                          }}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
-          )}
+          </div>
 
           {/* Repeat — hidden when editing a single occurrence (override has no rrule) */}
           {recurringEditScope !== "single" && (

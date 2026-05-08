@@ -22,7 +22,13 @@ interface Props {
 }
 
 function getEventsForDay(events: CalEvent[], day: Date): CalEvent[] {
-  return events.filter((e) => isSameDay(new Date(e.start_time), day))
+  const dayStart = new Date(day); dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(day); dayEnd.setHours(23, 59, 59, 999)
+  return events.filter((e) => {
+    const start = new Date(e.start_time)
+    const end = new Date(e.end_time)
+    return start <= dayEnd && end >= dayStart
+  })
 }
 
 function getEventStripes(events: CalEvent[]) {

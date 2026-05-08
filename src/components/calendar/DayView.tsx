@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { format, isToday, isSameDay } from "date-fns"
+import { format, isToday } from "date-fns"
 import { Bell, Repeat } from "lucide-react"
 import { BUSINESSES, colorForEvent } from "@/lib/constants"
 import { roundToNearest15 } from "@/lib/date"
@@ -65,13 +65,22 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
   const startHour = hours[0]
   const totalHeight = hours.length * HOUR_HEIGHT
 
+  const dayStart = new Date(anchorDate); dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(anchorDate); dayEnd.setHours(23, 59, 59, 999)
+
   // Split events: all-day events get a dedicated row; timed reminders get pill rendering
-  const allDayEvents = events.filter(
-    (e) => e.all_day && isSameDay(new Date(e.start_time), anchorDate)
-  )
-  const timedReminders = events.filter(
-    (e) => e.type === "reminder" && !e.all_day && isSameDay(new Date(e.start_time), anchorDate)
-  )
+  const allDayEvents = events.filter((e) => {
+    if (!e.all_day) return false
+    const start = new Date(e.start_time)
+    const end = new Date(e.end_time)
+    return start <= dayEnd && end >= dayStart
+  })
+  const timedReminders = events.filter((e) => {
+    if (e.type !== "reminder" || e.all_day) return false
+    const start = new Date(e.start_time)
+    const end = new Date(e.end_time)
+    return start <= dayEnd && end >= dayStart
+  })
   const timedNonReminderEvents = events.filter(
     (e) => e.type !== "reminder" && !e.all_day
   )
@@ -237,8 +246,15 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
           {layoutEvents.map((event) => {
             const start = new Date(event.start_time)
             const end = new Date(event.end_time)
-            const top = topForTime(start) - (startHour - GRID_START_HOUR) * HOUR_HEIGHT
-            const height = heightForEvent(start, end)
+            const gridStartDate = new Date(anchorDate)
+            gridStartDate.setHours(startHour, 0, 0, 0)
+            const renderStart = event.effectiveStart.getTime() < gridStartDate.getTime()
+              ? gridStartDate
+              : event.effectiveStart
+            const top = topForTime(renderStart) - (startHour - GRID_START_HOUR) * HOUR_HEIGHT
+            const height = heightForEvent(renderStart, event.effectiveEnd)
+            const continuesBefore = event.continuesBefore || event.effectiveStart.getTime() < gridStartDate.getTime()
+            const continuesAfter = event.continuesAfter
             const colors = eventColor(event)
             const widthPct = 100 / event.cols
             const leftPct = (event.col / event.cols) * 100
@@ -259,7 +275,10 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
                   color: colors.text,
                 }}
               >
-                <div className="px-1.5 pt-1 relative">
+                {continuesBefore && (
+                  <div className="absolute top-0 inset-x-0 flex items-center justify-center h-3 text-[7px] opacity-70 z-10" style={{ backgroundColor: colors.bg }}>↑</div>
+                )}
+                <div className="px-1.5 pt-1 relative" style={continuesBefore ? { paddingTop: '0.875rem' } : undefined}>
                   {(event.is_recurring_instance || event.rrule) && (
                     <Repeat
                       size={10}
@@ -273,6 +292,9 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
                     </div>
                   )}
                 </div>
+                {continuesAfter && (
+                  <div className="absolute bottom-0 inset-x-0 flex items-center justify-center h-3 text-[7px] opacity-70" style={{ backgroundColor: colors.bg }}>↓</div>
+                )}
               </button>
             )
           })}
