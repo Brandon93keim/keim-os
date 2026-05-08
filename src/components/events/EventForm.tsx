@@ -89,7 +89,7 @@ interface FormDefaults {
 interface Props {
   event?: CalEvent | null
   defaults?: FormDefaults
-  onSuccess: () => void
+  onSuccess: (result?: { event: CalEvent; isNew: boolean }) => void
   onCancel: () => void
   recurringEditScope?: RecurringScope
   recurringMasterId?: string
@@ -263,32 +263,38 @@ export function EventForm({
       if (recurringEditScope === "single" && recurringOccurrenceDate) {
         updateRecurringSingle.mutate(
           { masterId: recurringMasterId, occurrenceDate: recurringOccurrenceDate, values },
-          { onSuccess }
+          { onSuccess: () => onSuccess() }
         )
       } else if (recurringEditScope === "following" && recurringOccurrenceDate) {
         updateRecurringFollowing.mutate(
           { masterId: recurringMasterId, occurrenceDate: recurringOccurrenceDate, values },
-          { onSuccess }
+          { onSuccess: () => onSuccess() }
         )
       } else if (recurringEditScope === "all") {
         updateRecurringAll.mutate(
           { masterId: recurringMasterId, values },
-          { onSuccess }
+          { onSuccess: () => onSuccess() }
         )
       }
       return
     }
 
     if (event) {
-      updateEvent.mutate({ id: event.id, values }, { onSuccess })
+      updateEvent.mutate(
+        { id: event.id, values },
+        { onSuccess: (data) => onSuccess({ event: data, isNew: false }) }
+      )
     } else {
-      createEvent.mutate(values, { onSuccess })
+      createEvent.mutate(
+        values,
+        { onSuccess: (data) => onSuccess({ event: data, isNew: true }) }
+      )
     }
   }
 
   function handleDelete() {
     if (!event) return
-    deleteEvent.mutate(event.id, { onSuccess })
+    deleteEvent.mutate(event.id, { onSuccess: () => onSuccess() })
   }
 
   return (

@@ -9,10 +9,23 @@ import { DayView } from "./DayView"
 import { CalendarFAB } from "./CalendarFAB"
 import { EventFormSheet } from "@/components/events/EventFormSheet"
 import { EventDetailSheet } from "@/components/events/EventDetailSheet"
+import { InvoiceFormSheet } from "@/components/invoices/InvoiceFormSheet"
 import { getCalendarDays, getWeekDays } from "@/lib/date"
 import { useEventsBetween, type CalEvent } from "@/lib/hooks/useEvents"
+import { useClients } from "@/lib/hooks/useClients"
+import { eventToUnbilledJob, type UnbilledJob } from "@/lib/queries/jobs"
 import type { EventFormValues } from "@/lib/validations/event"
 import type { RecurringScope } from "@/components/events/RecurringEditDialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export type CalendarView = "month" | "week" | "day"
 
@@ -36,6 +49,12 @@ export function Calendar() {
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailEvent, setDetailEvent] = useState<CalEvent | null>(null)
+
+  const [pendingInvoicePrompt, setPendingInvoicePrompt] = useState<CalEvent | null>(null)
+  const [prefillJob, setPrefillJob] = useState<UnbilledJob | null>(null)
+  const [invoiceSheetOpen, setInvoiceSheetOpen] = useState(false)
+
+  const { data: clients = [] } = useClients()
 
   // Compute query window based on view
   const queryWindow = (() => {
@@ -189,6 +208,15 @@ export function Calendar() {
         recurringEditScope={recurringEditScope}
         recurringMasterId={recurringMasterId}
         recurringOccurrenceDate={recurringOccurrenceDate}
+        onSaved={(result) => {
+          if (
+            result.isNew &&
+            result.event.type === "job" &&
+            new Date(result.event.start_time) <= new Date()
+          ) {
+            setPendingInvoicePrompt(result.event)
+          }
+        }}
       />
 
       <EventDetailSheet
@@ -196,6 +224,46 @@ export function Calendar() {
         onClose={() => setDetailOpen(false)}
         event={detailEvent}
         onEdit={handleEditFromDetail}
+      />
+
+      <AlertDialog
+        open={pendingInvoicePrompt !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingInvoicePrompt(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Create invoice for this job?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingInvoicePrompt?.job_number ?? "This job"} can be
+              invoiced now. You can also do it later from the Unbilled tab.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Skip</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pendingInvoicePrompt) return
+                const job = eventToUnbilledJob(pendingInvoicePrompt, clients)
+                setPendingInvoicePrompt(null)
+                setPrefillJob(job)
+                setInvoiceSheetOpen(true)
+              }}
+            >
+              Create Invoice
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <InvoiceFormSheet
+        open={invoiceSheetOpen}
+        onClose={() => {
+          setInvoiceSheetOpen(false)
+          setPrefillJob(null)
+        }}
+        prefillJob={prefillJob}
       />
     </div>
   )

@@ -25,6 +25,7 @@ interface Props {
   recurringEditScope?: RecurringScope
   recurringMasterId?: string
   recurringOccurrenceDate?: Date
+  onSaved?: (result: { event: CalEvent; isNew: boolean }) => void
 }
 
 const SCOPE_TITLES: Record<RecurringScope, string> = {
@@ -41,6 +42,7 @@ export function EventFormSheet({
   recurringEditScope,
   recurringMasterId,
   recurringOccurrenceDate,
+  onSaved,
 }: Props) {
   const title = recurringEditScope
     ? SCOPE_TITLES[recurringEditScope]
@@ -62,7 +64,10 @@ export function EventFormSheet({
         <EventForm
           event={event}
           defaults={defaults}
-          onSuccess={onClose}
+          onSuccess={(result) => {
+            if (result && onSaved) onSaved(result)
+            onClose()
+          }}
           onCancel={onClose}
           recurringEditScope={recurringEditScope}
           recurringMasterId={recurringMasterId}

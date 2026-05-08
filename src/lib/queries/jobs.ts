@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/client"
+import type { CalEvent } from "@/lib/hooks/useEvents"
+import type { Client } from "@/lib/queries/clients"
 
 export type UnbilledJob = {
   id: string
@@ -98,4 +100,21 @@ export async function getUnbilledJobs(): Promise<UnbilledJob[]> {
 
   // (c) Keep jobs not referenced by any active invoice line item
   return jobs.filter((j) => !billedIds.has(j.id)).map(toUnbilledJob)
+}
+
+export function eventToUnbilledJob(event: CalEvent, clients: Client[]): UnbilledJob {
+  const client = event.client_id
+    ? clients.find((c) => c.id === event.client_id) ?? null
+    : null
+  return {
+    id: event.id,
+    title: event.title,
+    job_number: event.job_number ?? null,
+    business_id: event.business_id ?? "",
+    client_id: event.client_id ?? null,
+    client_name: client?.name ?? null,
+    client_company: client?.company ?? null,
+    start_time: event.start_time,
+    job_total_amount: event.job_total_amount ?? null,
+  }
 }
