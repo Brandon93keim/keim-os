@@ -3,13 +3,13 @@
 import { useRef } from "react"
 import { isSameDay, isToday, isSameMonth, format } from "date-fns"
 import { getCalendarDays } from "@/lib/date"
-import { BUSINESSES, colorForEvent } from "@/lib/constants"
+import { BUSINESSES } from "@/lib/constants"
 import { cn } from "@/lib/utils"
+import { computeWeekBars, chunkIntoWeeks } from "@/lib/calendarBars"
 import type { CalEvent } from "@/lib/hooks/useEvents"
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
-const MAX_STRIPES = 3
 const MAX_DOTS = 4
 
 interface Props {
@@ -21,29 +21,6 @@ interface Props {
   onNext: () => void
 }
 
-function getEventsForDay(events: CalEvent[], day: Date): CalEvent[] {
-  const dayStart = new Date(day); dayStart.setHours(0, 0, 0, 0)
-  const dayEnd = new Date(day); dayEnd.setHours(23, 59, 59, 999)
-  return events.filter((e) => {
-    const start = new Date(e.start_time)
-    const end = new Date(e.end_time)
-    return start <= dayEnd && end >= dayStart
-  })
-}
-
-function getEventStripes(events: CalEvent[]) {
-  const seen = new Set<string>()
-  const stripes: Array<{ color: string }> = []
-  for (const e of events) {
-    const color = colorForEvent(e)
-    if (!seen.has(color)) {
-      seen.add(color)
-      stripes.push({ color })
-    }
-  }
-  return stripes
-}
-
 function getReminderDots(events: CalEvent[]) {
   return events.map((e) => {
     const biz = BUSINESSES.find((b) => b.id === e.business_id)
@@ -51,8 +28,20 @@ function getReminderDots(events: CalEvent[]) {
   })
 }
 
+function getReminderEventsForDay(events: CalEvent[], day: Date): CalEvent[] {
+  const dayStart = new Date(day); dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(day); dayEnd.setHours(23, 59, 59, 999)
+  return events.filter((e) => {
+    if (e.type !== "reminder") return false
+    const start = new Date(e.start_time)
+    const end = new Date(e.end_time)
+    return start <= dayEnd && end >= dayStart
+  })
+}
+
 export function MonthView({ anchorDate, selectedDate, events, onDayTap, onPrev, onNext }: Props) {
   const days = getCalendarDays(anchorDate)
+  const weeks = chunkIntoWeeks(days)
   const touchStartX = useRef<number | null>(null)
   const touchStartY = useRef<number | null>(null)
   const isVerticalScroll = useRef(false)
@@ -108,80 +97,100 @@ export function MonthView({ anchorDate, selectedDate, events, onDayTap, onPrev, 
         ))}
       </div>
 
-      {/* Day grid */}
-      <div className="grid grid-cols-7 grid-rows-6 flex-1">
-        {days.map((day) => {
-          const dayEvents = getEventsForDay(events, day)
-          const reminderEvents = dayEvents.filter((e) => e.type === "reminder")
-          const nonReminderEvents = dayEvents.filter((e) => e.type !== "reminder")
-
-          const dots = getReminderDots(reminderEvents)
-          const visibleDots = dots.slice(0, MAX_DOTS)
-          const extraDots = dots.length > MAX_DOTS ? dots.length - MAX_DOTS : 0
-
-          const stripes = getEventStripes(nonReminderEvents)
-          const visibleStripes = stripes.slice(0, MAX_STRIPES)
-          const extraStripes = stripes.length > MAX_STRIPES ? stripes.length - MAX_STRIPES : 0
-
-          const isCurrentMonth = isSameMonth(day, anchorDate)
-          const todayDay = isToday(day)
-          const selected = selectedDate ? isSameDay(day, selectedDate) : false
+      {/* Week rows */}
+      <div className="flex flex-col flex-1">
+        {weeks.map((week, weekIdx) => {
+          const weekStart = week[0]
+          const { segments, overflow } = computeWeekBars(events, weekStart)
 
           return (
-            <button
-              key={day.toISOString()}
-              type="button"
-              onClick={() => onDayTap(day)}
-              className={cn(
-                "relative flex flex-col items-start border-b border-r border-border p-1 active:bg-muted/50 transition-colors min-h-0",
-                !isCurrentMonth && "opacity-40"
-              )}
-            >
-              <span
-                className={cn(
-                  "flex items-center justify-center w-6 h-6 text-xs font-medium rounded-full leading-none mb-0.5",
-                  todayDay && "bg-primary text-primary-foreground",
-                  selected && !todayDay && "ring-2 ring-primary",
-                  !todayDay && !selected && "text-foreground"
-                )}
-              >
-                {format(day, "d")}
-              </span>
+            <div key={weekIdx} className="relative grid grid-cols-7 flex-1 min-h-0">
+              {week.map((day, colIdx) => {
+                const reminderEvents = getReminderEventsForDay(events, day)
+                const dots = getReminderDots(reminderEvents)
+                const visibleDots = dots.slice(0, MAX_DOTS)
+                const extraDots = dots.length > MAX_DOTS ? dots.length - MAX_DOTS : 0
+                const overflowCount = overflow[colIdx]
 
-              {/* Reminder dots row */}
-              {(visibleDots.length > 0 || extraDots > 0) && (
-                <div className="w-full flex items-center gap-0.5 mt-0.5">
-                  {visibleDots.map((dot, i) => (
-                    <div
-                      key={i}
-                      className="w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{ backgroundColor: dot.color }}
-                    />
-                  ))}
-                  {extraDots > 0 && (
-                    <span className="text-[9px] text-muted-foreground font-medium leading-none">
-                      +{extraDots}
+                const isCurrentMonth = isSameMonth(day, anchorDate)
+                const todayDay = isToday(day)
+                const selected = selectedDate ? isSameDay(day, selectedDate) : false
+
+                return (
+                  <button
+                    key={day.toISOString()}
+                    type="button"
+                    onClick={() => onDayTap(day)}
+                    className={cn(
+                      "relative flex flex-col items-start border-b border-r border-border p-1 active:bg-muted/50 transition-colors min-h-0",
+                      !isCurrentMonth && "opacity-40"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "flex items-center justify-center w-6 h-6 text-xs font-medium rounded-full leading-none mb-0.5",
+                        todayDay && "bg-primary text-primary-foreground",
+                        selected && !todayDay && "ring-2 ring-primary",
+                        !todayDay && !selected && "text-foreground"
+                      )}
+                    >
+                      {format(day, "d")}
                     </span>
-                  )}
-                </div>
-              )}
 
-              {/* Business stripes row */}
-              <div className="w-full flex flex-col gap-px mt-auto">
-                {visibleStripes.map((stripe, i) => (
+                    {/* Reminder dots row */}
+                    {(visibleDots.length > 0 || extraDots > 0) && (
+                      <div className="w-full flex items-center gap-0.5 mt-0.5">
+                        {visibleDots.map((dot, i) => (
+                          <div
+                            key={i}
+                            className="w-1.5 h-1.5 rounded-full shrink-0"
+                            style={{ backgroundColor: dot.color }}
+                          />
+                        ))}
+                        {extraDots > 0 && (
+                          <span className="text-[9px] text-muted-foreground font-medium leading-none">
+                            +{extraDots}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Overflow indicator */}
+                    {overflowCount > 0 && (
+                      <div className="mt-auto">
+                        <span className="text-[9px] text-muted-foreground font-medium leading-none">
+                          +{overflowCount}
+                        </span>
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
+
+              {/* Bar overlay — pointer-events-none so taps pass through to cells */}
+              <div
+                className="absolute inset-x-0 pointer-events-none"
+                style={{ top: 26, bottom: 4, zIndex: 1 }}
+              >
+                {segments.map((seg, i) => (
                   <div
-                    key={i}
-                    className="h-[3px] w-full rounded-sm"
-                    style={{ backgroundColor: stripe.color }}
+                    key={`${seg.event.id}-${weekIdx}-${i}`}
+                    className="absolute"
+                    style={{
+                      left: `calc(${(seg.startCol / 7) * 100}% + 2px)`,
+                      width: `calc(${((seg.endCol - seg.startCol + 1) / 7) * 100}% - 4px)`,
+                      top: seg.lane * 7,
+                      height: 5,
+                      backgroundColor: seg.color,
+                      borderTopLeftRadius: seg.continuesBefore ? 0 : 2,
+                      borderBottomLeftRadius: seg.continuesBefore ? 0 : 2,
+                      borderTopRightRadius: seg.continuesAfter ? 0 : 2,
+                      borderBottomRightRadius: seg.continuesAfter ? 0 : 2,
+                    }}
                   />
                 ))}
-                {extraStripes > 0 && (
-                  <span className="text-[9px] text-muted-foreground font-medium leading-none">
-                    +{extraStripes}
-                  </span>
-                )}
               </div>
-            </button>
+            </div>
           )
         })}
       </div>
