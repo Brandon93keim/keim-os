@@ -4,7 +4,7 @@ import { useRef, useState, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { format, addHours } from "date-fns"
-import { ChevronRight, Trash2 } from "lucide-react"
+import { ChevronRight, Plus, Trash2 } from "lucide-react"
 import {
   eventFormSchema,
   type EventFormValues,
@@ -64,6 +64,7 @@ import {
 } from "@/lib/recurrence"
 import { RecurrencePicker } from "./RecurrencePicker"
 import type { RecurringScope } from "./RecurringEditDialog"
+import { QuickCreateClientDialog } from "@/components/clients/QuickCreateClientDialog"
 
 const EVENT_TYPES = [
   { value: "job", label: "Job" },
@@ -197,6 +198,7 @@ export function EventForm({
   const [calOpen, setCalOpen] = useState(false)
   const [endCalOpen, setEndCalOpen] = useState(false)
   const [recurrenceOpen, setRecurrenceOpen] = useState(false)
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false)
   const [recurrence, setRecurrence] = useState<RecurrenceConfig | null>(() => {
     // Single-occurrence edits are detached overrides — no recurrence.
     if (recurringEditScope === "single") return null
@@ -494,24 +496,38 @@ export function EventForm({
                   <FormLabel>
                     Client{watchedType === "job" ? " *" : ""}
                   </FormLabel>
-                  <Select
-                    onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
-                    value={field.value ?? "__none__"}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select client…" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="__none__">None</SelectItem>
-                      {filteredClients.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}{c.company ? ` — ${c.company}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2 items-stretch">
+                    <div className="flex-1">
+                      <Select
+                        onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
+                        value={field.value ?? "__none__"}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select client…" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="__none__">None</SelectItem>
+                          {filteredClients.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name}{c.company ? ` — ${c.company}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0 h-9"
+                      onClick={() => setQuickCreateOpen(true)}
+                      aria-label="Create new client"
+                    >
+                      <Plus size={16} />
+                    </Button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -526,24 +542,38 @@ export function EventForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Linked client (optional)</FormLabel>
-                  <Select
-                    onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
-                    value={field.value ?? "__none__"}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select client…" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="__none__">None</SelectItem>
-                      {filteredClients.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}{c.company ? ` — ${c.company}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2 items-stretch">
+                    <div className="flex-1">
+                      <Select
+                        onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
+                        value={field.value ?? "__none__"}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select client…" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="__none__">None</SelectItem>
+                          {filteredClients.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name}{c.company ? ` — ${c.company}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0 h-9"
+                      onClick={() => setQuickCreateOpen(true)}
+                      aria-label="Create new client"
+                    >
+                      <Plus size={16} />
+                    </Button>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     Reminder will link to this client&apos;s detail page
                   </p>
@@ -860,6 +890,18 @@ export function EventForm({
         value={recurrence}
         onChange={setRecurrence}
         dtstart={watchedDate}
+      />
+
+      <QuickCreateClientDialog
+        open={quickCreateOpen}
+        onClose={() => setQuickCreateOpen(false)}
+        defaultBusinessId={watchedBusinessId}
+        onCreated={(client) => {
+          form.setValue("client_id", client.id)
+          if (form.getValues("type") === "reminder") {
+            form.setValue("reminder_for_client_id", client.id)
+          }
+        }}
       />
     </Form>
   )
