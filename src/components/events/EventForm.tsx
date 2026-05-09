@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef, useState, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { format, addHours } from "date-fns"
@@ -186,7 +186,13 @@ export function EventForm({
   const watchedType = form.watch("type")
   const watchedAllDay = form.watch("all_day")
   const watchedStartTime = form.watch("start_time")
+  const watchedBusinessId = form.watch("business_id")
   const watchedDate = watchedStartTime instanceof Date ? watchedStartTime : new Date(watchedStartTime)
+
+  const filteredClients = useMemo(() => {
+    if (!watchedBusinessId) return clients
+    return clients.filter((c) => c.business_ids?.includes(watchedBusinessId))
+  }, [clients, watchedBusinessId])
 
   const [calOpen, setCalOpen] = useState(false)
   const [endCalOpen, setEndCalOpen] = useState(false)
@@ -244,7 +250,6 @@ export function EventForm({
   const showReminderClient = watchedType === "reminder"
   const showPurpose = watchedType === "meeting"
   const showGolfPurpose = watchedType === "golf"
-  const showJobAmount = watchedType === "job"
   const isJob = watchedType === "job"
 
   async function onSubmit(rawValues: EventFormInput) {
@@ -449,7 +454,17 @@ export function EventForm({
                         <button
                           key={biz.id}
                           type="button"
-                          onClick={() => field.onChange(selected ? null : biz.id)}
+                          onClick={() => {
+                            const newBiz = selected ? null : biz.id
+                            field.onChange(newBiz)
+                            const currentClientId = form.getValues("client_id")
+                            if (currentClientId && newBiz) {
+                              const client = clients.find((c) => c.id === currentClientId)
+                              if (!client?.business_ids?.includes(newBiz)) {
+                                form.setValue("client_id", null)
+                              }
+                            }
+                          }}
                           className={cn(
                             "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors min-h-[36px]",
                             selected
@@ -490,7 +505,7 @@ export function EventForm({
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="__none__">None</SelectItem>
-                      {clients.map((c) => (
+                      {filteredClients.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name}{c.company ? ` — ${c.company}` : ""}
                         </SelectItem>
@@ -522,7 +537,7 @@ export function EventForm({
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="__none__">None</SelectItem>
-                      {clients.map((c) => (
+                      {filteredClients.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name}{c.company ? ` — ${c.company}` : ""}
                         </SelectItem>
@@ -785,35 +800,6 @@ export function EventForm({
             )}
           />
 
-          {/* Job total amount */}
-          {showJobAmount && (
-            <FormField
-              control={form.control}
-              name="job_total_amount"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Total amount</FormLabel>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-sm">$</span>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        step={0.01}
-                        placeholder="0.00"
-                        value={field.value ?? ""}
-                        onChange={(e) =>
-                          field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))
-                        }
-                      />
-                    </FormControl>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
         </div>
 
         {/* Sticky footer */}

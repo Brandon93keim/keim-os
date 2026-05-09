@@ -4,7 +4,7 @@ import { useRef } from "react"
 import { format, isToday, isSameDay } from "date-fns"
 import { Bell, Repeat } from "lucide-react"
 import { getWeekDays, HOURS_IN_VIEW } from "@/lib/date"
-import { BUSINESSES, colorForEvent } from "@/lib/constants"
+import { BUSINESSES, colorForEvent, shortJobNumber } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { useClients } from "@/lib/hooks/useClients"
 import { layoutEventsForDay, topForTime, heightForEvent, HOUR_HEIGHT } from "./eventLayout"
@@ -136,7 +136,9 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
                   const colors = { bg: base + "26", border: base, text: base + "e6" }
                   const isReminder = event.type === "reminder"
                   const linked = isReminder ? clients.find((c) => c.id === event.reminder_for_client_id) : null
-                  const label = linked ? `${event.title} · ${linked.name}` : event.title
+                  const label = event.job_number
+                    ? `${shortJobNumber(event.job_number)} · ${event.title}`
+                    : linked ? `${event.title} · ${linked.name}` : event.title
                   return (
                     <button
                       key={event.id}
@@ -249,7 +251,7 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
                           />
                         )}
                         <div className="text-[10px] font-semibold leading-tight truncate pr-2">
-                          {event.title}
+                          {event.job_number ? `${shortJobNumber(event.job_number)} · ${event.title}` : event.title}
                         </div>
                         <div className="text-[9px] opacity-80 leading-tight">
                           {format(start, "h:mma")}

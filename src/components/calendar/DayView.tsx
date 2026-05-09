@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { format, isToday } from "date-fns"
 import { Bell, Repeat } from "lucide-react"
-import { BUSINESSES, colorForEvent } from "@/lib/constants"
+import { BUSINESSES, colorForEvent, shortJobNumber } from "@/lib/constants"
 import { roundToNearest15 } from "@/lib/date"
 import { cn } from "@/lib/utils"
 import { useClients } from "@/lib/hooks/useClients"
@@ -178,7 +178,9 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
             const colors = { bg: base + "26", border: base, text: base + "e6" }
             const isReminder = event.type === "reminder"
             const linked = isReminder ? clients.find((c) => c.id === event.reminder_for_client_id) : null
-            const label = linked ? `${event.title} · ${linked.name}` : event.title
+            const label = event.job_number
+              ? `${shortJobNumber(event.job_number)} · ${event.title}`
+              : linked ? `${event.title} · ${linked.name}` : event.title
             return (
               <button
                 key={event.id}
@@ -285,7 +287,9 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
                       className="absolute top-0 right-1 opacity-60"
                     />
                   )}
-                  <div className="text-xs font-semibold leading-tight truncate pr-3">{event.title}</div>
+                  <div className="text-xs font-semibold leading-tight truncate pr-3">
+                    {event.job_number ? `${shortJobNumber(event.job_number)} · ${event.title}` : event.title}
+                  </div>
                   {height > 40 && (
                     <div className="text-[10px] opacity-80 leading-tight">
                       {format(start, "h:mm a")} – {format(end, "h:mm a")}

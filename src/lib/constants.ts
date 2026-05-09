@@ -80,6 +80,13 @@ export function getBusinessPrefix(id: string): string {
   return BUSINESS_PREFIXES[id] ?? id.toUpperCase().slice(0, 4)
 }
 
+export function shortJobNumber(full: string | null | undefined): string {
+  if (!full) return ""
+  const parts = full.split("-")
+  if (parts.length !== 3) return full
+  return `${parts[0]}-${parts[2]}`
+}
+
 type EventColorInput = {
   business_id: string | null
   type: string
