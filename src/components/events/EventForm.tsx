@@ -900,6 +900,8 @@ export function EventForm({
           form.setValue("client_id", client.id)
           if (form.getValues("type") === "reminder") {
             form.setValue("reminder_for_client_id", client.id)
+          } else {
+            form.setValue("client_id", client.id)
           }
         }}
       />
