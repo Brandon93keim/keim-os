@@ -102,6 +102,26 @@ export async function getUnbilledJobs(): Promise<UnbilledJob[]> {
   return jobs.filter((j) => !billedIds.has(j.id)).map(toUnbilledJob)
 }
 
+export async function isJobBilled(eventId: string): Promise<boolean> {
+  const supabase = createClient()
+  const { data: items, error: itemsErr } = await supabase
+    .from("invoice_line_items")
+    .select("invoice_id")
+    .eq("event_id", eventId)
+  if (itemsErr) throw itemsErr
+  if (!items || items.length === 0) return false
+
+  const invoiceIds = items.map((i) => i.invoice_id)
+  const { data: invoices, error: invErr } = await supabase
+    .from("invoices")
+    .select("status")
+    .in("id", invoiceIds)
+  if (invErr) throw invErr
+  return (invoices ?? []).some(
+    (inv) => !["cancelled", "void"].includes(inv.status)
+  )
+}
+
 export function eventToUnbilledJob(event: CalEvent, clients: Client[]): UnbilledJob {
   const client = event.client_id
     ? clients.find((c) => c.id === event.client_id) ?? null

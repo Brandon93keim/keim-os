@@ -224,6 +224,11 @@ export function Calendar() {
         onClose={() => setDetailOpen(false)}
         event={detailEvent}
         onEdit={handleEditFromDetail}
+        onCreateInvoice={(event) => {
+          const job = eventToUnbilledJob(event, clients)
+          setPrefillJob(job)
+          setInvoiceSheetOpen(true)
+        }}
       />
 
       <AlertDialog

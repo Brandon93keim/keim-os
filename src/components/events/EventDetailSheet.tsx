@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { format } from "date-fns"
-import { Bell, MapPin, User, Edit2, Trash2, Repeat } from "lucide-react"
+import { AlertCircle, Bell, MapPin, User, Edit2, Trash2, Repeat } from "lucide-react"
 import { useRouter } from "next/navigation"
 import {
   Sheet,
@@ -32,6 +32,7 @@ import {
   type CalEvent,
 } from "@/lib/hooks/useEvents"
 import { useClients } from "@/lib/hooks/useClients"
+import { useIsJobBilled } from "@/lib/hooks/useInvoices"
 import { configFromRRule, describeRecurrence } from "@/lib/recurrence"
 import { countSeriesOccurrences } from "@/lib/queries/events"
 import { RecurringEditDialog, type RecurringScope } from "./RecurringEditDialog"
@@ -41,6 +42,7 @@ interface Props {
   onClose: () => void
   event: CalEvent | null
   onEdit: (event: CalEvent, scope?: RecurringScope) => void
+  onCreateInvoice?: (event: CalEvent) => void
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -57,7 +59,7 @@ const STATUS_VARIANT: Record<string, string> = {
   cancelled: "destructive",
 }
 
-export function EventDetailSheet({ open, onClose, event, onEdit }: Props) {
+export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice }: Props) {
   const [recurringDialogOpen, setRecurringDialogOpen] = useState(false)
   const [recurringDialogMode, setRecurringDialogMode] = useState<"edit" | "delete">("edit")
   const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
@@ -68,6 +70,10 @@ export function EventDetailSheet({ open, onClose, event, onEdit }: Props) {
   const deleteRecurringFollowing = useDeleteRecurringFollowing()
   const deleteRecurringAll = useDeleteRecurringAll()
   const { data: clients = [] } = useClients()
+
+  const isPastJob = event?.type === "job" && new Date(event.start_time) <= new Date()
+  const { data: isBilled } = useIsJobBilled(isPastJob ? event!.id : null)
+  const showInvoiceCTA = isPastJob && isBilled === false
 
   if (!event) return null
 
@@ -173,6 +179,38 @@ export function EventDetailSheet({ open, onClose, event, onEdit }: Props) {
                     ${event.job_total_amount.toFixed(2)}
                   </span>
                 )}
+              </div>
+            )}
+
+            {showInvoiceCTA && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 space-y-3">
+                <div className="flex items-start gap-3">
+                  <AlertCircle
+                    className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5"
+                    size={18}
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                      Needs Invoice
+                    </div>
+                    <div className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                      This job is past-dated and hasn&apos;t been invoiced yet.
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => {
+                    if (onCreateInvoice) {
+                      onCreateInvoice(event)
+                      onClose()
+                    }
+                  }}
+                  disabled={!onCreateInvoice}
+                  className="w-full h-9"
+                  size="sm"
+                >
+                  Create Invoice
+                </Button>
               </div>
             )}
 
