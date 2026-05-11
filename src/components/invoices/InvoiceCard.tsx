@@ -1,8 +1,9 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { format, isPast, parseISO } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { getBusinessById } from "@/lib/constants"
+import { getEffectiveStatus } from "@/lib/invoiceStatus"
 import { cn } from "@/lib/utils"
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge"
 import type { InvoiceSummary } from "@/lib/queries/invoices"
@@ -14,7 +15,8 @@ interface Props {
 export function InvoiceCard({ invoice }: Props) {
   const router = useRouter()
   const biz = getBusinessById(invoice.business_id)
-  const isOverdue = invoice.status === "sent" && isPast(parseISO(invoice.due_date))
+  const effective = getEffectiveStatus(invoice)
+  const isOverdue = effective === "overdue"
 
   return (
     <button
@@ -39,7 +41,7 @@ export function InvoiceCard({ invoice }: Props) {
           </span>
         )}
         <div className="ml-auto">
-          <InvoiceStatusBadge status={isOverdue ? "overdue" : invoice.status} />
+          <InvoiceStatusBadge status={effective} />
         </div>
       </div>
 

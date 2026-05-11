@@ -2,15 +2,19 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { format, isPast, parseISO } from "date-fns"
+import { format, parseISO } from "date-fns"
 import {
-  ArrowLeft, ChevronDown, Edit2, ExternalLink, MoreVertical,
+  ArrowLeft, ChevronDown, Download, Edit2, ExternalLink, MoreVertical,
   Send, Trash2, User, X,
 } from "lucide-react"
 import { useInvoice, useMarkInvoiceSent, useMarkInvoiceCancelled, useMarkInvoiceVoid, useDeleteInvoice, useDeletePayment } from "@/lib/hooks/useInvoices"
+import { useProfile } from "@/lib/hooks/useProfile"
+import { getEffectiveStatus } from "@/lib/invoiceStatus"
+import { downloadInvoicePdf } from "@/lib/pdf"
 import { getBusinessById } from "@/lib/constants"
 import { PAYMENT_METHOD_LABELS } from "@/lib/validations/invoice"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -85,11 +89,13 @@ interface Props {
 export function InvoiceDetail({ invoiceId }: Props) {
   const router = useRouter()
   const { data: invoice, isLoading, error } = useInvoice(invoiceId)
+  const { data: profile } = useProfile()
 
   const [editOpen, setEditOpen] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   const markSent = useMarkInvoiceSent()
   const markCancelled = useMarkInvoiceCancelled()
@@ -119,7 +125,8 @@ export function InvoiceDetail({ invoiceId }: Props) {
 
   const biz = getBusinessById(invoice.business_id)
   const amountDue = Math.max(0, invoice.total - invoice.amount_paid)
-  const isOverdue = invoice.status === "sent" && isPast(parseISO(invoice.due_date))
+  const effectiveStatus = getEffectiveStatus(invoice)
+  const isOverdue = effectiveStatus === "overdue"
   const canSend = invoice.status === "draft"
   const canPay = !["paid", "cancelled", "void"].includes(invoice.status)
   const canEdit = !["cancelled", "void"].includes(invoice.status)
@@ -128,6 +135,25 @@ export function InvoiceDetail({ invoiceId }: Props) {
     deleteInvoice.mutate(invoiceId, {
       onSuccess: () => router.replace("/invoices"),
     })
+  }
+
+  async function handleDownloadPdf() {
+    if (!invoice || !biz || !profile) return
+    try {
+      setPdfLoading(true)
+      await downloadInvoicePdf(
+        invoice,
+        invoice.line_items,
+        invoice.payments,
+        invoice.client ?? null,
+        biz,
+        profile,
+      )
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate PDF")
+    } finally {
+      setPdfLoading(false)
+    }
   }
 
   return (
@@ -147,7 +173,7 @@ export function InvoiceDetail({ invoiceId }: Props) {
               {invoice.invoice_number ?? "Draft"}
             </div>
           </div>
-          <InvoiceStatusBadge status={isOverdue ? "overdue" : invoice.status} />
+          <InvoiceStatusBadge status={effectiveStatus} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -377,6 +403,15 @@ export function InvoiceDetail({ invoiceId }: Props) {
             Edit
           </Button>
         )}
+        <Button
+          variant="outline"
+          className="h-11 gap-2"
+          onClick={handleDownloadPdf}
+          disabled={pdfLoading || !invoice}
+        >
+          <Download size={16} />
+          {pdfLoading ? "Generating…" : "Download PDF"}
+        </Button>
       </div>
 
       {/* Edit sheet */}

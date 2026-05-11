@@ -73,6 +73,10 @@ function filterAndSort(
       result = result.filter(
         (inv) => inv.status === "sent" && isPast(parseISO(inv.due_date))
       )
+    } else if (status === "sent") {
+      result = result.filter(
+        (inv) => inv.status === "sent" && !isPast(parseISO(inv.due_date))
+      )
     } else {
       result = result.filter((inv) => inv.status === status)
     }
