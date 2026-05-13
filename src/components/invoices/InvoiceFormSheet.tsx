@@ -7,7 +7,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { useMarkInvoiceSent } from "@/lib/hooks/useInvoices"
 import { InvoiceForm } from "./InvoiceForm"
 import type { Invoice } from "@/lib/queries/invoices"
 import type { UnbilledJob } from "@/lib/queries/jobs"
@@ -21,24 +20,14 @@ interface Props {
 
 export function InvoiceFormSheet({ open, onClose, invoice, prefillJob }: Props) {
   const router = useRouter()
-  const markSent = useMarkInvoiceSent()
 
   const title = invoice
     ? `Edit ${invoice.invoice_number ?? "Invoice"}`
     : "New Invoice"
 
-  function handleSuccess(invoiceId: string, shouldMarkSent?: boolean) {
-    if (shouldMarkSent) {
-      markSent.mutate(invoiceId, {
-        onSuccess: () => {
-          onClose()
-          if (!invoice) router.push(`/invoices/${invoiceId}`)
-        },
-      })
-    } else {
-      onClose()
-      if (!invoice) router.push(`/invoices/${invoiceId}`)
-    }
+  function handleSuccess(invoiceId: string) {
+    onClose()
+    if (!invoice) router.push(`/invoices/${invoiceId}`)
   }
 
   return (

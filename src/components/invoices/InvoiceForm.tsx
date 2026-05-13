@@ -4,7 +4,8 @@ import { useEffect } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { addDays, format } from "date-fns"
-import { Plus, Trash2, X } from "lucide-react"
+import { Download, Plus, Trash2, X } from "lucide-react"
+import { toast } from "sonner"
 import {
   invoiceFormSchema,
   type InvoiceFormValues,
@@ -13,10 +14,13 @@ import {
   DEFAULT_TERMS,
   PAYMENT_METHOD_LABELS,
 } from "@/lib/validations/invoice"
-import { BUSINESSES } from "@/lib/constants"
+import { BUSINESSES, getBusinessById } from "@/lib/constants"
 import { BUSINESS_IDS } from "@/lib/validations/client"
-import { useCreateInvoice, useUpdateInvoice, useJobsForLineItem } from "@/lib/hooks/useInvoices"
+import { useCreateInvoice, useUpdateInvoice, useMarkInvoiceSent, useJobsForLineItem } from "@/lib/hooks/useInvoices"
 import { useClients } from "@/lib/hooks/useClients"
+import { useProfile } from "@/lib/hooks/useProfile"
+import { getInvoice } from "@/lib/queries/invoices"
+import { downloadInvoicePdf } from "@/lib/pdf"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -45,7 +49,7 @@ import type { UnbilledJob } from "@/lib/queries/jobs"
 interface Props {
   invoice?: Invoice | null
   prefillJob?: UnbilledJob | null
-  onSuccess: (invoiceId: string, markSent?: boolean) => void
+  onSuccess: (invoiceId: string) => void
   onCancel: () => void
 }
 
@@ -111,7 +115,9 @@ function buildDefaults(invoice?: Invoice | null, prefillJob?: UnbilledJob | null
 export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props) {
   const createInvoice = useCreateInvoice()
   const updateInvoice = useUpdateInvoice()
+  const markSentMutation = useMarkInvoiceSent()
   const { data: clients = [] } = useClients()
+  const { data: profile } = useProfile()
 
   const form = useForm<InvoiceFormInput>({
     resolver: zodResolver(invoiceFormSchema),
@@ -155,18 +161,64 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
 
   const isSubmitting = form.formState.isSubmitting
 
-  async function submit(values: InvoiceFormInput, markSent = false) {
+  async function submit(values: InvoiceFormInput) {
     const v = values as unknown as InvoiceFormValues
     if (invoice) {
       updateInvoice.mutate(
         { id: invoice.id, values: v },
-        { onSuccess: () => onSuccess(invoice.id, markSent) }
+        { onSuccess: () => onSuccess(invoice.id) }
       )
     } else {
       createInvoice.mutate(v, {
-        onSuccess: (data) => onSuccess(data.id, markSent),
+        onSuccess: (data) => onSuccess(data.id),
       })
     }
+  }
+
+  async function submitAndDownload(values: InvoiceFormInput) {
+    const v = values as unknown as InvoiceFormValues
+    let savedId: string
+    try {
+      if (invoice) {
+        await updateInvoice.mutateAsync({ id: invoice.id, values: v })
+        savedId = invoice.id
+      } else {
+        const data = await createInvoice.mutateAsync(v)
+        savedId = data.id
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save invoice")
+      return
+    }
+
+    const shouldMarkSent = !invoice || invoice.status === "draft"
+    if (shouldMarkSent) {
+      try {
+        await markSentMutation.mutateAsync(savedId)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to mark invoice as sent")
+        onSuccess(savedId)
+        return
+      }
+    }
+
+    try {
+      const freshInvoice = await getInvoice(savedId)
+      const biz = getBusinessById(freshInvoice.business_id)
+      if (!biz || !profile) throw new Error("Missing business or profile data")
+      await downloadInvoicePdf(
+        freshInvoice,
+        freshInvoice.line_items,
+        freshInvoice.payments,
+        freshInvoice.client ?? null,
+        biz,
+        profile,
+      )
+    } catch {
+      toast.error("Saved, but PDF generation failed. Open the invoice to download.")
+    }
+
+    onSuccess(savedId)
   }
 
   return (
@@ -444,24 +496,29 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
             <Button type="button" variant="outline" onClick={onCancel} className="flex-1 h-11">
               Cancel
             </Button>
-            {!invoice && (
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isSubmitting}
-                className="flex-1 h-11"
-                onClick={form.handleSubmit((v) => submit(v, true))}
-              >
-                {isSubmitting ? "Saving…" : "Send"}
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSubmitting}
+              className="flex-1 h-11"
+              onClick={form.handleSubmit(submit)}
+            >
+              {isSubmitting ? "Saving…" : invoice ? "Save" : "Save Draft"}
+            </Button>
             <Button
               type="button"
               disabled={isSubmitting}
-              className="flex-1 h-11"
-              onClick={form.handleSubmit((v) => submit(v, false))}
+              className="flex-1 h-11 gap-1.5"
+              onClick={form.handleSubmit(submitAndDownload)}
             >
-              {isSubmitting ? "Saving…" : invoice ? "Save" : "Save Draft"}
+              {isSubmitting ? (
+                "Generating…"
+              ) : (
+                <>
+                  <Download size={14} />
+                  Save & Download PDF
+                </>
+              )}
             </Button>
           </div>
         </div>
