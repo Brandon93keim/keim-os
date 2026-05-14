@@ -1,6 +1,113 @@
 import { createClient } from "@/lib/supabase/client"
-import type { CalEvent } from "@/lib/hooks/useEvents"
+import type { CalEvent } from "@/lib/queries/events"
 import type { Client } from "@/lib/queries/clients"
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Jobs entity
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type Job = {
+  id: string
+  user_id: string
+  business_id: string
+  client_id: string | null
+  job_number: string
+  title: string
+  description: string | null
+  status: "open" | "completed" | "cancelled"
+  total_estimate: number | null
+  created_at: string
+  updated_at: string
+}
+
+async function getUserId(): Promise<string> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+  return user.id
+}
+
+export async function listJobs(filters?: {
+  business_id?: string
+  client_id?: string
+  status?: Job["status"]
+}): Promise<Job[]> {
+  const supabase = createClient()
+  const userId = await getUserId()
+
+  let query = supabase
+    .from("jobs")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+
+  if (filters?.business_id) query = query.eq("business_id", filters.business_id)
+  if (filters?.client_id) query = query.eq("client_id", filters.client_id)
+  if (filters?.status) query = query.eq("status", filters.status)
+
+  const { data, error } = await query
+  if (error) throw error
+  return (data ?? []) as Job[]
+}
+
+export async function getJob(id: string): Promise<Job | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("jobs")
+    .select("*")
+    .eq("id", id)
+    .single()
+
+  if (error) {
+    if (error.code === "PGRST116") return null
+    throw error
+  }
+  return data as Job
+}
+
+export async function createJob(values: {
+  business_id: string
+  client_id: string | null
+  title: string
+  description?: string | null
+  total_estimate?: number | null
+}): Promise<Job> {
+  const supabase = createClient()
+  const { data, error } = await supabase.rpc("create_job", {
+    p_business_id: values.business_id,
+    p_client_id: values.client_id,
+    p_title: values.title,
+    p_description: values.description ?? null,
+    p_total_estimate: values.total_estimate ?? null,
+  })
+  if (error) throw error
+  return data as Job
+}
+
+export async function updateJob(
+  id: string,
+  values: Partial<Pick<Job, "title" | "description" | "client_id" | "status" | "total_estimate" | "job_number">>
+): Promise<Job> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("jobs")
+    .update(values)
+    .eq("id", id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as Job
+}
+
+export async function deleteJob(id: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from("jobs").delete().eq("id", id)
+  if (error) throw error
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Unbilled jobs (event-level, preserved for Prompt 3 refactor)
+// ─────────────────────────────────────────────────────────────────────────────
 
 export type UnbilledJob = {
   id: string
@@ -14,21 +121,14 @@ export type UnbilledJob = {
   job_total_amount: number | null
 }
 
-async function getUserId(): Promise<string> {
-  const supabase = createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Not authenticated")
-  return user.id
-}
-
 type RawJob = {
   id: string
   title: string
-  job_number: string | null
+  job_id: string | null
   business_id: string | null
   client_id: string | null
   start_time: string
-  job_total_amount: number | null
+  job: { job_number: string; total_estimate: number | null } | null
   client: { name: string; company: string | null } | null
 }
 
@@ -36,13 +136,13 @@ function toUnbilledJob(j: RawJob): UnbilledJob {
   return {
     id: j.id,
     title: j.title,
-    job_number: j.job_number,
+    job_number: j.job?.job_number ?? null,
     business_id: j.business_id ?? "",
     client_id: j.client_id,
     client_name: j.client?.name ?? null,
     client_company: j.client?.company ?? null,
     start_time: j.start_time,
-    job_total_amount: j.job_total_amount,
+    job_total_amount: j.job?.total_estimate ?? null,
   }
 }
 
@@ -54,7 +154,7 @@ export async function getUnbilledJobs(): Promise<UnbilledJob[]> {
   // (a) Candidate jobs: type='job', start_time <= now, oldest first
   const { data: rawJobs, error: jobsError } = await supabase
     .from("events")
-    .select("id, title, job_number, business_id, client_id, start_time, job_total_amount, client:clients(name, company)")
+    .select("id, title, job_id, business_id, client_id, start_time, job:jobs(job_number, total_estimate), client:clients(name, company)")
     .eq("user_id", userId)
     .eq("type", "job")
     .lte("start_time", now)

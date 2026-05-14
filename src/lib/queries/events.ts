@@ -8,21 +8,49 @@ import {
   rruleToString,
   getAllOccurrencesCount,
 } from "@/lib/recurrence"
+import { createJob } from "@/lib/queries/jobs"
 
 type EventRow = Tables<"events">
+
+// Nested job shape projected from the jobs join.
+type JobSnapshot = {
+  id: string
+  job_number: string
+  title: string
+  description: string | null
+  total_estimate: number | null
+  status: string
+}
 
 // CalendarEvent is either a real DB row or a synthetic recurring instance.
 // Synthetic instances have is_recurring_instance=true and a composite id
 // in the format `${masterId}::${occurrenceISO}`.
+// job_number and job_total_amount are virtual fields projected from the jobs
+// join for backward compatibility with existing consumers.
 export type CalendarEvent = EventRow & {
   is_recurring_instance?: boolean
   master_id?: string
   occurrence_date?: string       // ISO string of this specific occurrence
   master_start_time?: string     // master's original dtstart (for rrule parsing)
+  job_number: string | null
+  job_total_amount: number | null
+  job?: JobSnapshot | null
 }
 
 // Backward-compat alias — all existing code typed against CalEvent still works.
 export type CalEvent = CalendarEvent
+
+const JOB_SELECT = "*, job:jobs(id, job_number, title, description, total_estimate, status)" as const
+
+function mapEvent(row: EventRow & { job?: JobSnapshot | null }): CalendarEvent {
+  const { job, ...rest } = row as EventRow & { job?: JobSnapshot | null }
+  return {
+    ...rest,
+    job_number: job?.job_number ?? null,
+    job_total_amount: job?.total_estimate ?? null,
+    job: job ?? null,
+  }
+}
 
 // Parse a synthetic composite id back to its parts.
 export function parseEventId(id: string): {
@@ -81,7 +109,7 @@ export async function listEventsBetween(
   // 1. One-off events that overlap the range.
   const { data: oneOffs, error: e1 } = await supabase
     .from("events")
-    .select("*")
+    .select(JOB_SELECT)
     .is("rrule", null)
     .lt("start_time", end.toISOString())
     .gte("end_time", start.toISOString())
@@ -90,7 +118,7 @@ export async function listEventsBetween(
   // 2. Recurring masters whose window overlaps the range.
   const { data: masters, error: e2 } = await supabase
     .from("events")
-    .select("*")
+    .select(JOB_SELECT)
     .not("rrule", "is", null)
     .lte("start_time", end.toISOString())
     .or(`recurrence_end_date.is.null,recurrence_end_date.gte.${start.toISOString()}`)
@@ -114,8 +142,10 @@ export async function listEventsBetween(
 
   // 4. Expand each master into synthetic CalendarEvent instances.
   const instances: CalendarEvent[] = []
-  for (const master of masters ?? []) {
-    if (!master.rrule) continue
+  for (const masterRaw of masters ?? []) {
+    if (!masterRaw.rrule) continue
+
+    const master = mapEvent(masterRaw as unknown as EventRow & { job?: JobSnapshot | null })
 
     const masterExceptions = exceptions
       .filter((ex) => ex.event_id === master.id)
@@ -129,7 +159,7 @@ export async function listEventsBetween(
       new Date(master.end_time).getTime() - dtstart.getTime()
 
     const occurrences = getOccurrencesBetween(
-      master.rrule,
+      master.rrule!,
       dtstart,
       start,
       end,
@@ -151,7 +181,10 @@ export async function listEventsBetween(
   }
 
   // 5. Merge and sort.
-  const combined: CalendarEvent[] = [...(oneOffs ?? []), ...instances]
+  const mappedOneOffs = (oneOffs ?? []).map(
+    (r) => mapEvent(r as unknown as EventRow & { job?: JobSnapshot | null })
+  )
+  const combined: CalendarEvent[] = [...mappedOneOffs, ...instances]
   combined.sort(
     (a, b) =>
       new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
@@ -165,7 +198,7 @@ export async function getEvent(id: string): Promise<CalendarEvent | null> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from("events")
-    .select("*")
+    .select(JOB_SELECT)
     .eq("id", masterId)
     .single()
 
@@ -175,23 +208,25 @@ export async function getEvent(id: string): Promise<CalendarEvent | null> {
   }
   if (!data) return null
 
-  if (occurrenceDate && data.rrule) {
-    const dtstart = new Date(data.start_time)
+  const mapped = mapEvent(data as unknown as EventRow & { job?: JobSnapshot | null })
+
+  if (occurrenceDate && mapped.rrule) {
+    const dtstart = new Date(mapped.start_time)
     const duration =
-      new Date(data.end_time).getTime() - dtstart.getTime()
+      new Date(mapped.end_time).getTime() - dtstart.getTime()
     return {
-      ...data,
+      ...mapped,
       id,
       start_time: occurrenceDate.toISOString(),
       end_time: new Date(occurrenceDate.getTime() + duration).toISOString(),
       is_recurring_instance: true,
-      master_id: data.id,
+      master_id: mapped.id,
       occurrence_date: occurrenceDate.toISOString(),
-      master_start_time: data.start_time,
+      master_start_time: mapped.start_time,
     }
   }
 
-  return data
+  return mapped
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -201,6 +236,50 @@ export async function getEvent(id: string): Promise<CalendarEvent | null> {
 export async function createEvent(values: EventFormValues): Promise<CalendarEvent> {
   const supabase = createClient()
   const userId = await getUserId()
+
+  if (values.type === "job" && values.business_id && values.client_id) {
+    // 1. Atomically create the job (generates number + inserts jobs row).
+    const newJob = await createJob({
+      business_id: values.business_id,
+      client_id: values.client_id,
+      title: values.title,
+      description: values.description || null,
+      total_estimate: null,
+    })
+
+    // 2. Insert the event row linked to the new job.
+    try {
+      const { data, error } = await supabase
+        .from("events")
+        .insert({
+          user_id: userId,
+          type: values.type,
+          title: values.title,
+          business_id: values.business_id,
+          client_id: values.client_id,
+          meeting_purpose: values.meeting_purpose,
+          golf_purpose: values.golf_purpose ?? null,
+          start_time: values.start_time.toISOString(),
+          end_time: values.end_time.toISOString(),
+          all_day: values.all_day,
+          location: values.location || null,
+          description: values.description || null,
+          color_override: values.color_override,
+          rrule: null,
+          recurrence_end_date: null,
+          reminder_for_client_id: values.reminder_for_client_id ?? null,
+          job_id: newJob.id,
+        })
+        .select(JOB_SELECT)
+        .single()
+      if (error) throw error
+      return mapEvent(data as unknown as EventRow & { job?: JobSnapshot | null })
+    } catch (err) {
+      // Rollback: delete the orphaned job to avoid dangling rows.
+      await supabase.from("jobs").delete().eq("id", newJob.id)
+      throw err
+    }
+  }
 
   const { data, error } = await supabase
     .from("events")
@@ -217,7 +296,6 @@ export async function createEvent(values: EventFormValues): Promise<CalendarEven
       all_day: values.all_day,
       location: values.location || null,
       description: values.description || null,
-      job_total_amount: values.job_total_amount,
       color_override: values.color_override,
       rrule: values.rrule ?? null,
       recurrence_end_date: values.recurrence_end_date
@@ -225,31 +303,11 @@ export async function createEvent(values: EventFormValues): Promise<CalendarEven
         : null,
       reminder_for_client_id: values.reminder_for_client_id ?? null,
     })
-    .select()
+    .select(JOB_SELECT)
     .single()
 
   if (error) throw error
-
-  if (values.type === "job" && values.business_id) {
-    const { data: jobNum, error: rpcErr } = await supabase.rpc(
-      "generate_job_number",
-      { p_business_id: values.business_id }
-    )
-    if (rpcErr) {
-      await supabase.from("events").delete().eq("id", data.id)
-      throw rpcErr
-    }
-    const { data: updated, error: updateErr } = await supabase
-      .from("events")
-      .update({ job_number: jobNum })
-      .eq("id", data.id)
-      .select()
-      .single()
-    if (updateErr) throw updateErr
-    return updated
-  }
-
-  return data
+  return mapEvent(data as unknown as EventRow & { job?: JobSnapshot | null })
 }
 
 export async function updateEvent(
@@ -271,7 +329,6 @@ export async function updateEvent(
       all_day: values.all_day,
       location: values.location || null,
       description: values.description || null,
-      job_total_amount: values.job_total_amount,
       color_override: values.color_override,
       rrule: values.rrule ?? null,
       recurrence_end_date: values.recurrence_end_date
@@ -280,10 +337,10 @@ export async function updateEvent(
       reminder_for_client_id: values.reminder_for_client_id ?? null,
     })
     .eq("id", id)
-    .select()
+    .select(JOB_SELECT)
     .single()
   if (error) throw error
-  return data
+  return mapEvent(data as unknown as EventRow & { job?: JobSnapshot | null })
 }
 
 export async function deleteEvent(id: string): Promise<void> {
@@ -309,6 +366,8 @@ export async function updateEventStatus(
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Build a canonical event payload from form values (shared across insert helpers).
+// job_total_amount and job_number have moved to the jobs table; job_id on events
+// is set only at creation time and not touched by these recurring helpers.
 function eventPayload(values: EventFormValues, userId: string) {
   return {
     user_id: userId,
@@ -321,7 +380,6 @@ function eventPayload(values: EventFormValues, userId: string) {
     all_day: values.all_day,
     location: values.location || null,
     description: values.description || null,
-    job_total_amount: values.job_total_amount,
     color_override: values.color_override,
     reminder_for_client_id: values.reminder_for_client_id ?? null,
   }
@@ -494,7 +552,6 @@ export async function updateRecurringAll(
       all_day: values.all_day,
       location: values.location || null,
       description: values.description || null,
-      job_total_amount: values.job_total_amount,
       color_override: values.color_override,
       reminder_for_client_id: values.reminder_for_client_id ?? null,
       rrule: values.rrule ?? null,

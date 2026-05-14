@@ -28,7 +28,6 @@ export const eventFormSchema = z
     all_day: z.boolean().default(false),
     location: z.string().max(500).optional(),
     description: z.string().max(5000).optional(),
-    job_total_amount: z.number().nonnegative().nullable(),
     color_override: z
       .string()
       .regex(/^#[0-9a-fA-F]{6}$/)

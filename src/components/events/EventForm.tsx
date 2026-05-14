@@ -113,7 +113,6 @@ function buildDefaultValues(event?: CalEvent | null, defaults?: FormDefaults): E
       all_day: event.all_day,
       location: event.location ?? "",
       description: event.description ?? "",
-      job_total_amount: event.job_total_amount ?? null,
       color_override: event.color_override ?? null,
       rrule: null,
       recurrence_end_date: null,
@@ -136,7 +135,6 @@ function buildDefaultValues(event?: CalEvent | null, defaults?: FormDefaults): E
     all_day: false,
     location: "",
     description: "",
-    job_total_amount: null,
     color_override: null,
     rrule: null,
     recurrence_end_date: null,
@@ -354,9 +352,6 @@ export function EventForm({
                         }
                         if (value !== "golf") {
                           form.setValue("golf_purpose", null)
-                        }
-                        if (value !== "job") {
-                          form.setValue("job_total_amount", null)
                         }
                         if (value !== "reminder") {
                           form.setValue("reminder_for_client_id", null)

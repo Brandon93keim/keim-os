@@ -187,8 +187,7 @@ export type Database = {
           end_time: string
           golf_purpose: string | null
           id: string
-          job_number: string | null
-          job_total_amount: number | null
+          job_id: string | null
           location: string | null
           meeting_purpose: string | null
           original_occurrence_date: string | null
@@ -213,8 +212,7 @@ export type Database = {
           end_time: string
           golf_purpose?: string | null
           id?: string
-          job_number?: string | null
-          job_total_amount?: number | null
+          job_id?: string | null
           location?: string | null
           meeting_purpose?: string | null
           original_occurrence_date?: string | null
@@ -239,8 +237,7 @@ export type Database = {
           end_time?: string
           golf_purpose?: string | null
           id?: string
-          job_number?: string | null
-          job_total_amount?: number | null
+          job_id?: string | null
           location?: string | null
           meeting_purpose?: string | null
           original_occurrence_date?: string | null
@@ -264,6 +261,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "events_parent_event_id_fkey"
             columns: ["parent_event_id"]
             isOneToOne: false
@@ -273,6 +277,56 @@ export type Database = {
           {
             foreignKeyName: "events_reminder_for_client_id_fkey"
             columns: ["reminder_for_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobs: {
+        Row: {
+          business_id: string
+          client_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          job_number: string
+          status: string
+          title: string
+          total_estimate: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          business_id: string
+          client_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          job_number: string
+          status?: string
+          title: string
+          total_estimate?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          business_id?: string
+          client_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          job_number?: string
+          status?: string
+          title?: string
+          total_estimate?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_client_id_fkey"
+            columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
@@ -555,6 +609,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_job: {
+        Args: {
+          p_business_id: string
+          p_client_id: string | null
+          p_title: string
+          p_description?: string | null
+          p_total_estimate?: number | null
+        }
+        Returns: {
+          id: string
+          user_id: string
+          business_id: string
+          client_id: string | null
+          job_number: string
+          title: string
+          description: string | null
+          status: string
+          total_estimate: number | null
+          created_at: string
+          updated_at: string
+        }
+      }
       generate_invoice_number: {
         Args: { p_business_id: string }
         Returns: string

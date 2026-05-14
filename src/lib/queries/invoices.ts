@@ -313,7 +313,7 @@ export async function listJobsForClientAndBusiness(
 
   const { data, error } = await supabase
     .from("events")
-    .select("id, title, job_total_amount, start_time")
+    .select("id, title, start_time, job:jobs(total_estimate)")
     .eq("user_id", userId)
     .eq("type", "job")
     .eq("client_id", clientId)
@@ -322,5 +322,10 @@ export async function listJobsForClientAndBusiness(
     .limit(30)
 
   if (error) throw error
-  return data ?? []
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    start_time: row.start_time,
+    job_total_amount: (row.job as { total_estimate: number | null } | null)?.total_estimate ?? null,
+  }))
 }
