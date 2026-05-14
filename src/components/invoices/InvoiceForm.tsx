@@ -78,6 +78,15 @@ function buildDefaults(invoice?: Invoice | null, prefillJob?: UnbilledJob | null
   const today = new Date()
 
   if (prefillJob) {
+    const lineItems = prefillJob.unbilled_events.length > 0
+      ? prefillJob.unbilled_events.map((ev) => ({
+          id: undefined,
+          event_id: ev.event_id,
+          description: ev.title,
+          quantity: 1,
+          unit_price: 0,
+        }))
+      : [{ id: undefined, event_id: null, description: "", quantity: 1, unit_price: 0 }]
     return {
       business_id: prefillJob.business_id as (typeof BUSINESS_IDS)[number],
       client_id: prefillJob.client_id ?? "",
@@ -88,13 +97,7 @@ function buildDefaults(invoice?: Invoice | null, prefillJob?: UnbilledJob | null
       notes: "",
       terms: DEFAULT_TERMS,
       email_address: "",
-      line_items: [{
-        id: undefined,
-        event_id: prefillJob.id,
-        description: prefillJob.title,
-        quantity: 1,
-        unit_price: prefillJob.job_total_amount ?? 0,
-      }],
+      line_items: lineItems,
     }
   }
 

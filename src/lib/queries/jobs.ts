@@ -1,6 +1,4 @@
 import { createClient } from "@/lib/supabase/client"
-import type { CalEvent } from "@/lib/queries/events"
-import type { Client } from "@/lib/queries/clients"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Jobs entity
@@ -106,44 +104,70 @@ export async function deleteJob(id: string): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Unbilled jobs (event-level, preserved for Prompt 3 refactor)
+// Unbilled jobs (job-grouped shape)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type UnbilledJob = {
-  id: string
-  title: string
-  job_number: string | null
-  business_id: string
-  client_id: string | null
-  client_name: string | null
-  client_company: string | null
-  start_time: string
-  job_total_amount: number | null
+  job_id:               string
+  job_number:           string
+  job_title:            string
+  business_id:          string
+  client_id:            string | null
+  client_name:          string | null
+  client_company:       string | null
+  total_estimate:       number | null
+  unbilled_events:      Array<{
+    event_id:   string
+    title:      string
+    start_time: string
+  }>
+  oldest_unbilled_date: string
 }
 
-type RawJob = {
+type RawJobRecord = {
   id: string
-  title: string
-  job_id: string | null
-  business_id: string | null
+  business_id: string
   client_id: string | null
-  start_time: string
-  job: { job_number: string; total_estimate: number | null } | null
+  job_number: string
+  title: string
+  total_estimate: number | null
   client: { name: string; company: string | null } | null
 }
 
-function toUnbilledJob(j: RawJob): UnbilledJob {
-  return {
-    id: j.id,
-    title: j.title,
-    job_number: j.job?.job_number ?? null,
-    business_id: j.business_id ?? "",
-    client_id: j.client_id,
-    client_name: j.client?.name ?? null,
-    client_company: j.client?.company ?? null,
-    start_time: j.start_time,
-    job_total_amount: j.job?.total_estimate ?? null,
+type RawEventRecord = { id: string; job_id: string; title: string; start_time: string }
+
+async function fetchBilledEventIds(eventIds: string[]): Promise<Set<string>> {
+  if (eventIds.length === 0) return new Set()
+  const supabase = createClient()
+  const { data: lineItems, error: liError } = await supabase
+    .from("invoice_line_items")
+    .select("event_id, invoice_id")
+    .in("event_id", eventIds)
+  if (liError) throw liError
+  if (!lineItems || lineItems.length === 0) return new Set()
+
+  const invoiceIds = [...new Set(
+    lineItems.map((li) => li.invoice_id as string | null).filter((id): id is string => !!id)
+  )]
+  if (invoiceIds.length === 0) return new Set()
+
+  const supabase2 = createClient()
+  const { data: activeInvoices, error: invError } = await supabase2
+    .from("invoices")
+    .select("id")
+    .in("id", invoiceIds)
+    .neq("status", "cancelled")
+    .neq("status", "void")
+  if (invError) throw invError
+
+  const activeSet = new Set((activeInvoices ?? []).map((inv) => inv.id as string))
+  const billed = new Set<string>()
+  for (const li of lineItems) {
+    if (li.invoice_id && activeSet.has(li.invoice_id as string) && li.event_id) {
+      billed.add(li.event_id as string)
+    }
   }
+  return billed
 }
 
 export async function getUnbilledJobs(): Promise<UnbilledJob[]> {
@@ -151,58 +175,75 @@ export async function getUnbilledJobs(): Promise<UnbilledJob[]> {
   const userId = await getUserId()
   const now = new Date().toISOString()
 
-  // (a) Candidate jobs: type='job', start_time <= now, oldest first
+  // Step 1: all open jobs for this user
   const { data: rawJobs, error: jobsError } = await supabase
-    .from("events")
-    .select("id, title, job_id, business_id, client_id, start_time, job:jobs(job_number, total_estimate), client:clients(name, company)")
+    .from("jobs")
+    .select("id, business_id, client_id, job_number, title, total_estimate, client:clients(name, company)")
     .eq("user_id", userId)
-    .eq("type", "job")
-    .lte("start_time", now)
-    .order("start_time", { ascending: true })
-
+    .eq("status", "open")
   if (jobsError) throw jobsError
-  const jobs = (rawJobs ?? []) as unknown as RawJob[]
+  const jobs = (rawJobs ?? []) as unknown as RawJobRecord[]
   if (jobs.length === 0) return []
 
   const jobIds = jobs.map((j) => j.id)
 
-  // (b) Line items referencing these jobs
-  const { data: lineItems, error: liError } = await supabase
-    .from("invoice_line_items")
-    .select("event_id, invoice_id")
-    .in("event_id", jobIds)
+  // Step 2: past-dated job events linked to those jobs
+  const { data: rawEvents, error: eventsError } = await supabase
+    .from("events")
+    .select("id, job_id, title, start_time")
+    .eq("user_id", userId)
+    .eq("type", "job")
+    .lte("start_time", now)
+    .in("job_id", jobIds)
+  if (eventsError) throw eventsError
+  const events = (rawEvents ?? []) as unknown as RawEventRecord[]
+  if (events.length === 0) return []
 
-  if (liError) throw liError
-  if (!lineItems || lineItems.length === 0) return jobs.map(toUnbilledJob)
+  // Step 3: which of those events are billed?
+  const billedEventIds = await fetchBilledEventIds(events.map((e) => e.id))
 
-  const invoiceIds = [
-    ...new Set(lineItems.map((li) => li.invoice_id).filter((id): id is string => !!id)),
-  ]
-  if (invoiceIds.length === 0) return jobs.map(toUnbilledJob)
+  // Step 4-6: group events by job, keep jobs with ≥1 unbilled event, build shape
+  const jobMap = new Map(jobs.map((j) => [j.id, j]))
+  const eventsByJob = new Map<string, RawEventRecord[]>()
+  for (const ev of events) {
+    if (!ev.job_id) continue
+    const bucket = eventsByJob.get(ev.job_id) ?? []
+    bucket.push(ev)
+    eventsByJob.set(ev.job_id, bucket)
+  }
 
-  // Active invoices (not cancelled/void)
-  const { data: activeInvoices, error: invError } = await supabase
-    .from("invoices")
-    .select("id")
-    .in("id", invoiceIds)
-    .neq("status", "cancelled")
-    .neq("status", "void")
+  const result: UnbilledJob[] = []
+  for (const [jobId, jobEvents] of eventsByJob) {
+    const unbilled = jobEvents.filter((e) => !billedEventIds.has(e.id))
+    if (unbilled.length === 0) continue
+    const job = jobMap.get(jobId)!
+    const oldestDate = unbilled.reduce(
+      (min, e) => (e.start_time < min ? e.start_time : min),
+      unbilled[0].start_time
+    )
+    result.push({
+      job_id: jobId,
+      job_number: job.job_number,
+      job_title: job.title,
+      business_id: job.business_id,
+      client_id: job.client_id,
+      client_name: job.client?.name ?? null,
+      client_company: job.client?.company ?? null,
+      total_estimate: job.total_estimate,
+      unbilled_events: unbilled.map((e) => ({
+        event_id: e.id,
+        title: e.title,
+        start_time: e.start_time,
+      })),
+      oldest_unbilled_date: oldestDate,
+    })
+  }
 
-  if (invError) throw invError
-
-  const activeSet = new Set((activeInvoices ?? []).map((inv) => inv.id))
-  const billedIds = new Set(
-    lineItems
-      .filter((li) => li.invoice_id && activeSet.has(li.invoice_id))
-      .map((li) => li.event_id)
-      .filter((id): id is string => !!id)
-  )
-
-  // (c) Keep jobs not referenced by any active invoice line item
-  return jobs.filter((j) => !billedIds.has(j.id)).map(toUnbilledJob)
+  result.sort((a, b) => a.oldest_unbilled_date.localeCompare(b.oldest_unbilled_date))
+  return result
 }
 
-export async function isJobBilled(eventId: string): Promise<boolean> {
+export async function isEventBilled(eventId: string): Promise<boolean> {
   const supabase = createClient()
   const { data: items, error: itemsErr } = await supabase
     .from("invoice_line_items")
@@ -222,19 +263,55 @@ export async function isJobBilled(eventId: string): Promise<boolean> {
   )
 }
 
-export function eventToUnbilledJob(event: CalEvent, clients: Client[]): UnbilledJob {
-  const client = event.client_id
-    ? clients.find((c) => c.id === event.client_id) ?? null
-    : null
+/**
+ * Fetch the data needed to prefill an InvoiceForm from a job.
+ * Includes ALL currently-unbilled events of the job (past and future).
+ * Throws if the job doesn't exist or has zero unbilled events.
+ */
+export async function getInvoicePrefillForJob(jobId: string): Promise<UnbilledJob> {
+  const supabase = createClient()
+
+  const { data: rawJob, error: jobError } = await supabase
+    .from("jobs")
+    .select("id, business_id, client_id, job_number, title, total_estimate, client:clients(name, company)")
+    .eq("id", jobId)
+    .single()
+  if (jobError) throw jobError
+  const job = rawJob as unknown as RawJobRecord
+
+  // No start_time filter — prefill includes future events too
+  const { data: rawEvents, error: eventsError } = await supabase
+    .from("events")
+    .select("id, title, start_time")
+    .eq("type", "job")
+    .eq("job_id", jobId)
+  if (eventsError) throw eventsError
+  const events = (rawEvents ?? []) as Array<{ id: string; title: string; start_time: string }>
+  if (events.length === 0) throw new Error("No events found for this job")
+
+  const billedEventIds = await fetchBilledEventIds(events.map((e) => e.id))
+  const unbilled = events.filter((e) => !billedEventIds.has(e.id))
+  if (unbilled.length === 0) throw new Error("No unbilled events for this job")
+
+  const oldestDate = unbilled.reduce(
+    (min, e) => (e.start_time < min ? e.start_time : min),
+    unbilled[0].start_time
+  )
+
   return {
-    id: event.id,
-    title: event.title,
-    job_number: event.job_number ?? null,
-    business_id: event.business_id ?? "",
-    client_id: event.client_id ?? null,
-    client_name: client?.name ?? null,
-    client_company: client?.company ?? null,
-    start_time: event.start_time,
-    job_total_amount: event.job_total_amount ?? null,
+    job_id: jobId,
+    job_number: job.job_number,
+    job_title: job.title,
+    business_id: job.business_id,
+    client_id: job.client_id,
+    client_name: job.client?.name ?? null,
+    client_company: job.client?.company ?? null,
+    total_estimate: job.total_estimate,
+    unbilled_events: unbilled.map((e) => ({
+      event_id: e.id,
+      title: e.title,
+      start_time: e.start_time,
+    })),
+    oldest_unbilled_date: oldestDate,
   }
 }

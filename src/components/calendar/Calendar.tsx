@@ -11,9 +11,9 @@ import { EventFormSheet } from "@/components/events/EventFormSheet"
 import { EventDetailSheet } from "@/components/events/EventDetailSheet"
 import { InvoiceFormSheet } from "@/components/invoices/InvoiceFormSheet"
 import { getCalendarDays, getWeekDays } from "@/lib/date"
+import { toast } from "sonner"
 import { useEventsBetween, type CalEvent } from "@/lib/hooks/useEvents"
-import { useClients } from "@/lib/hooks/useClients"
-import { eventToUnbilledJob, type UnbilledJob } from "@/lib/queries/jobs"
+import { getInvoicePrefillForJob, type UnbilledJob } from "@/lib/queries/jobs"
 import type { EventFormValues } from "@/lib/validations/event"
 import type { RecurringScope } from "@/components/events/RecurringEditDialog"
 import {
@@ -53,8 +53,6 @@ export function Calendar() {
   const [pendingInvoicePrompt, setPendingInvoicePrompt] = useState<CalEvent | null>(null)
   const [prefillJob, setPrefillJob] = useState<UnbilledJob | null>(null)
   const [invoiceSheetOpen, setInvoiceSheetOpen] = useState(false)
-
-  const { data: clients = [] } = useClients()
 
   // Compute query window based on view
   const queryWindow = (() => {
@@ -104,6 +102,21 @@ export function Calendar() {
     setDetailEvent(event)
     setDetailOpen(true)
   }, [])
+
+  async function handleCreateInvoiceFromEvent(event: CalEvent) {
+    const jobId = event.job_id
+    if (!jobId) {
+      toast.error("This event isn't linked to a job")
+      return
+    }
+    try {
+      const prefill = await getInvoicePrefillForJob(jobId)
+      setPrefillJob(prefill)
+      setInvoiceSheetOpen(true)
+    } catch {
+      toast.error("Couldn't load job for invoicing")
+    }
+  }
 
   function handleEditFromDetail(event: CalEvent, scope?: RecurringScope) {
     setDetailOpen(false)
@@ -224,11 +237,7 @@ export function Calendar() {
         onClose={() => setDetailOpen(false)}
         event={detailEvent}
         onEdit={handleEditFromDetail}
-        onCreateInvoice={(event) => {
-          const job = eventToUnbilledJob(event, clients)
-          setPrefillJob(job)
-          setInvoiceSheetOpen(true)
-        }}
+        onCreateInvoice={handleCreateInvoiceFromEvent}
       />
 
       <AlertDialog
@@ -250,10 +259,9 @@ export function Calendar() {
             <AlertDialogAction
               onClick={() => {
                 if (!pendingInvoicePrompt) return
-                const job = eventToUnbilledJob(pendingInvoicePrompt, clients)
+                const event = pendingInvoicePrompt
                 setPendingInvoicePrompt(null)
-                setPrefillJob(job)
-                setInvoiceSheetOpen(true)
+                handleCreateInvoiceFromEvent(event)
               }}
             >
               Create Invoice

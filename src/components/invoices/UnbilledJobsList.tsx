@@ -1,6 +1,6 @@
 "use client"
 
-import { differenceInCalendarDays, parseISO } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { getBusinessById } from "@/lib/constants"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useUnbilledJobs } from "@/lib/hooks/useInvoices"
@@ -8,13 +8,6 @@ import type { UnbilledJob } from "@/lib/queries/jobs"
 
 interface Props {
   onCreateInvoice: (job: UnbilledJob) => void
-}
-
-function jobAge(startTime: string): string {
-  const days = differenceInCalendarDays(new Date(), parseISO(startTime))
-  if (days <= 0) return "today"
-  if (days === 1) return "yesterday"
-  return `${days} days ago`
 }
 
 function LoadingSkeleton() {
@@ -52,9 +45,15 @@ export function UnbilledJobsList({ onCreateInvoice }: Props) {
     <div className="space-y-3 px-4">
       {jobs.map((job) => {
         const biz = getBusinessById(job.business_id)
+        const eventCount = job.unbilled_events.length
+        const dateLabel =
+          eventCount === 1
+            ? format(parseISO(job.oldest_unbilled_date), "MMM d, yyyy")
+            : `${eventCount} unbilled events · oldest ${format(parseISO(job.oldest_unbilled_date), "MMM d")}`
+
         return (
           <button
-            key={job.id}
+            key={job.job_id}
             type="button"
             onClick={() => onCreateInvoice(job)}
             className="w-full rounded-xl border border-border bg-card text-left overflow-hidden flex active:bg-muted/50 transition-colors"
@@ -67,9 +66,9 @@ export function UnbilledJobsList({ onCreateInvoice }: Props) {
 
             <div className="flex-1 p-4 min-w-0">
               {/* Top row: job number · business name */}
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-mono text-xs font-bold">
-                  {job.job_number ?? "—"}
+              <div className="flex items-baseline gap-2 mb-0.5">
+                <span className="font-mono font-bold text-sm">
+                  {job.job_number}
                 </span>
                 {biz && (
                   <span className="text-xs text-muted-foreground truncate">
@@ -78,27 +77,26 @@ export function UnbilledJobsList({ onCreateInvoice }: Props) {
                 )}
               </div>
 
-              {/* Title */}
+              {/* Job title */}
               <div className="text-sm font-medium leading-snug line-clamp-1">
-                {job.title}
+                {job.job_title}
               </div>
 
-              {/* Bottom row: client · age · amount */}
-              <div className="flex items-center justify-between mt-2 gap-2">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
-                  {job.client_name ? (
-                    <span className="truncate">{job.client_name}</span>
-                  ) : (
-                    <span className="truncate italic">No client</span>
-                  )}
-                  <span className="shrink-0">·</span>
-                  <span className="shrink-0">{jobAge(job.start_time)}</span>
-                </div>
-                <span className="text-sm font-bold tabular-nums shrink-0">
-                  {job.job_total_amount != null
-                    ? `$${job.job_total_amount.toFixed(2)}`
-                    : "—"}
+              {/* Client */}
+              <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                {job.client_company ?? job.client_name ?? "No client"}
+              </div>
+
+              {/* Bottom row: date label · estimate */}
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs text-muted-foreground">
+                  {dateLabel}
                 </span>
+                {job.total_estimate != null && (
+                  <span className="text-sm font-semibold tabular-nums shrink-0 ml-2">
+                    ${job.total_estimate.toFixed(2)}
+                  </span>
+                )}
               </div>
             </div>
           </button>

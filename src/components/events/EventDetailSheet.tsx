@@ -33,7 +33,7 @@ import {
   type CalEvent,
 } from "@/lib/hooks/useEvents"
 import { useClients } from "@/lib/hooks/useClients"
-import { useIsJobBilled } from "@/lib/hooks/useInvoices"
+import { useIsEventBilled } from "@/lib/hooks/useInvoices"
 import { configFromRRule, describeRecurrence } from "@/lib/recurrence"
 import { countSeriesOccurrences } from "@/lib/queries/events"
 import { RecurringEditDialog, type RecurringScope } from "./RecurringEditDialog"
@@ -98,7 +98,7 @@ export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice
   const { data: jobEvents = [] } = useEventsForJob(jobId)
 
   const isPastJob = event?.type === "job" && new Date(event.start_time) <= new Date()
-  const { data: isBilled } = useIsJobBilled(isPastJob ? event!.id : null)
+  const { data: isBilled } = useIsEventBilled(isPastJob ? event!.id : null)
   const showInvoiceCTA = isPastJob && isBilled === false
 
   if (!event) return null
