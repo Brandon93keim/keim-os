@@ -13,13 +13,13 @@ import { createJob } from "@/lib/queries/jobs"
 type EventRow = Tables<"events">
 
 // Nested job shape projected from the jobs join.
-type JobSnapshot = {
+export type JobSnapshot = {
   id: string
   job_number: string
   title: string
   description: string | null
   total_estimate: number | null
-  status: string
+  status: "open" | "completed" | "cancelled"
 }
 
 // CalendarEvent is either a real DB row or a synthetic recurring instance.
@@ -238,16 +238,33 @@ export async function createEvent(values: EventFormValues): Promise<CalendarEven
   const userId = await getUserId()
 
   if (values.type === "job" && values.business_id && values.client_id) {
-    // 1. Atomically create the job (generates number + inserts jobs row).
-    const newJob = await createJob({
-      business_id: values.business_id,
-      client_id: values.client_id,
-      title: values.title,
-      description: values.description || null,
-      total_estimate: null,
-    })
+    let jobId: string
 
-    // 2. Insert the event row linked to the new job.
+    if (values.linked_job_id) {
+      // Link to an existing job — verify it exists and belongs to this business.
+      const { data: existing, error: lookupErr } = await supabase
+        .from("jobs")
+        .select("id, business_id, client_id")
+        .eq("id", values.linked_job_id)
+        .single()
+      if (lookupErr || !existing) throw new Error("Selected job not found")
+      if (existing.business_id !== values.business_id) {
+        throw new Error("Selected job belongs to a different business")
+      }
+      jobId = existing.id
+    } else {
+      // Create a new job (existing behavior).
+      const newJob = await createJob({
+        business_id: values.business_id,
+        client_id: values.client_id,
+        title: values.title,
+        description: values.description || null,
+        total_estimate: null,
+      })
+      jobId = newJob.id
+    }
+
+    // Insert the event row linked to the job.
     try {
       const { data, error } = await supabase
         .from("events")
@@ -268,15 +285,17 @@ export async function createEvent(values: EventFormValues): Promise<CalendarEven
           rrule: null,
           recurrence_end_date: null,
           reminder_for_client_id: values.reminder_for_client_id ?? null,
-          job_id: newJob.id,
+          job_id: jobId,
         })
         .select(JOB_SELECT)
         .single()
       if (error) throw error
       return mapEvent(data as unknown as EventRow & { job?: JobSnapshot | null })
     } catch (err) {
-      // Rollback: delete the orphaned job to avoid dangling rows.
-      await supabase.from("jobs").delete().eq("id", newJob.id)
+      // Only rollback if we created a new job (not when linking to existing).
+      if (!values.linked_job_id) {
+        await supabase.from("jobs").delete().eq("id", jobId)
+      }
       throw err
     }
   }
@@ -653,4 +672,16 @@ export async function deleteRecurringAll(masterId: string): Promise<void> {
 
   const { error } = await supabase.from("events").delete().eq("id", masterId)
   if (error) throw error
+}
+
+// Fetch all events linked to a given job, regardless of date range.
+export async function listEventsForJob(jobId: string): Promise<CalEvent[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("events")
+    .select(JOB_SELECT)
+    .eq("job_id", jobId)
+    .order("start_time", { ascending: true })
+  if (error) throw error
+  return (data ?? []).map((r) => mapEvent(r as unknown as EventRow & { job?: JobSnapshot | null }))
 }

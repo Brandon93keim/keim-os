@@ -15,6 +15,7 @@ import {
   deleteRecurringSingle as deleteRecurringSingleQuery,
   deleteRecurringFollowing as deleteRecurringFollowingQuery,
   deleteRecurringAll as deleteRecurringAllQuery,
+  listEventsForJob,
   type CalendarEvent,
   type CalEvent,
 } from "@/lib/queries/events"
@@ -185,6 +186,14 @@ export function useDeleteRecurringAll() {
     onError: (err: Error) => {
       toast.error(err.message ?? "Failed to delete series")
     },
+  })
+}
+
+export function useEventsForJob(jobId: string | null) {
+  return useQuery({
+    queryKey: ["events", "for-job", jobId],
+    queryFn: () => listEventsForJob(jobId!),
+    enabled: !!jobId,
   })
 }
 

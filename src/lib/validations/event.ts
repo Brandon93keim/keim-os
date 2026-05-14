@@ -35,6 +35,9 @@ export const eventFormSchema = z
     rrule: z.string().nullable(),
     recurrence_end_date: z.date().nullable(),
     reminder_for_client_id: z.string().uuid().nullable(),
+    // UI-side: picker only shows jobs matching the selected business/client,
+    // so cross-business consistency is enforced before submit (no async DB refine).
+    linked_job_id: z.string().uuid().nullable().optional(),
   })
   .refine((d) => d.end_time > d.start_time, {
     message: "End time must be after start time",

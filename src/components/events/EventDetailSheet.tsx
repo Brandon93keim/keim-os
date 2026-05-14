@@ -29,6 +29,7 @@ import {
   useDeleteRecurringSingle,
   useDeleteRecurringFollowing,
   useDeleteRecurringAll,
+  useEventsForJob,
   type CalEvent,
 } from "@/lib/hooks/useEvents"
 import { useClients } from "@/lib/hooks/useClients"
@@ -36,6 +37,7 @@ import { useIsJobBilled } from "@/lib/hooks/useInvoices"
 import { configFromRRule, describeRecurrence } from "@/lib/recurrence"
 import { countSeriesOccurrences } from "@/lib/queries/events"
 import { RecurringEditDialog, type RecurringScope } from "./RecurringEditDialog"
+import { EditJobDialog } from "@/components/jobs/EditJobDialog"
 
 interface Props {
   open: boolean
@@ -59,10 +61,31 @@ const STATUS_VARIANT: Record<string, string> = {
   cancelled: "destructive",
 }
 
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    open: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+    completed: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+    cancelled: "bg-muted text-muted-foreground",
+  }
+  const labels: Record<string, string> = {
+    open: "Open",
+    completed: "Completed",
+    cancelled: "Cancelled",
+  }
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] ?? styles.open}`}
+    >
+      {labels[status] ?? status}
+    </span>
+  )
+}
+
 export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice }: Props) {
   const [recurringDialogOpen, setRecurringDialogOpen] = useState(false)
   const [recurringDialogMode, setRecurringDialogMode] = useState<"edit" | "delete">("edit")
   const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
+  const [editJobOpen, setEditJobOpen] = useState(false)
   const router = useRouter()
 
   const deleteEvent = useDeleteEvent()
@@ -70,6 +93,9 @@ export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice
   const deleteRecurringFollowing = useDeleteRecurringFollowing()
   const deleteRecurringAll = useDeleteRecurringAll()
   const { data: clients = [] } = useClients()
+
+  const jobId = event?.job?.id ?? null
+  const { data: jobEvents = [] } = useEventsForJob(jobId)
 
   const isPastJob = event?.type === "job" && new Date(event.start_time) <= new Date()
   const { data: isBilled } = useIsJobBilled(isPastJob ? event!.id : null)
@@ -101,6 +127,8 @@ export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice
       // ignore
     }
   }
+
+  const otherEvents = jobEvents.filter((e) => e.id !== event.id)
 
   function handleRecurringAction(scope: RecurringScope) {
     setRecurringDialogOpen(false)
@@ -167,8 +195,69 @@ export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-            {/* Job number + amount — hidden for reminders */}
-            {event.job_number && !isReminder && (
+            {/* Parent job panel — shown when this is a job event with a linked job */}
+            {event.type === "job" && event.job && !isReminder && (
+              <div className="rounded-xl bg-muted p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Job
+                    </span>
+                    <span className="font-mono text-sm font-bold">
+                      {event.job.job_number}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditJobOpen(true)}
+                  >
+                    Edit Job
+                  </Button>
+                </div>
+
+                {event.job.title && (
+                  <div className="text-sm font-medium">{event.job.title}</div>
+                )}
+
+                {event.job.description && (
+                  <div className="text-xs text-muted-foreground whitespace-pre-line">
+                    {event.job.description}
+                  </div>
+                )}
+
+                {event.job.total_estimate != null && (
+                  <div className="text-xs">
+                    Estimate:{" "}
+                    <span className="font-semibold tabular-nums">
+                      ${event.job.total_estimate.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+
+                <StatusBadge status={event.job.status} />
+
+                {otherEvents.length > 0 && (
+                  <div className="pt-2 border-t border-border space-y-1">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Other events on this job
+                    </div>
+                    {otherEvents.map((e) => (
+                      <div
+                        key={e.id}
+                        className="text-xs text-foreground"
+                      >
+                        {format(new Date(e.start_time), "MMM d, yyyy")} · {e.title}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Simple job display for events without a linked job snapshot */}
+            {event.type === "job" && !event.job && event.job_number && !isReminder && (
               <div className="flex items-center gap-2 p-3 rounded-xl bg-muted">
                 <span className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">
                   Job
@@ -374,6 +463,12 @@ export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <EditJobDialog
+        open={editJobOpen}
+        onClose={() => setEditJobOpen(false)}
+        job={event.job ?? null}
+      />
     </>
   )
 }

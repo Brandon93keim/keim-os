@@ -22,6 +22,8 @@ import {
   type CalEvent,
 } from "@/lib/hooks/useEvents"
 import { useClients } from "@/lib/hooks/useClients"
+import { useJobs } from "@/lib/hooks/useJobs"
+import { JobPicker } from "@/components/jobs/JobPicker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -117,6 +119,7 @@ function buildDefaultValues(event?: CalEvent | null, defaults?: FormDefaults): E
       rrule: null,
       recurrence_end_date: null,
       reminder_for_client_id: event.reminder_for_client_id ?? null,
+      linked_job_id: event.type === "job" ? (event.job_id ?? null) : null,
     }
   }
 
@@ -187,6 +190,10 @@ export function EventForm({
   const watchedStartTime = form.watch("start_time")
   const watchedBusinessId = form.watch("business_id")
   const watchedDate = watchedStartTime instanceof Date ? watchedStartTime : new Date(watchedStartTime)
+
+  const { data: jobsList = [] } = useJobs(
+    watchedBusinessId ? { business_id: watchedBusinessId } : undefined
+  )
 
   const filteredClients = useMemo(() => {
     if (!watchedBusinessId) return clients
@@ -454,6 +461,7 @@ export function EventForm({
                           onClick={() => {
                             const newBiz = selected ? null : biz.id
                             field.onChange(newBiz)
+                            form.setValue("linked_job_id", null)
                             const currentClientId = form.getValues("client_id")
                             if (currentClientId && newBiz) {
                               const client = clients.find((c) => c.id === currentClientId)
@@ -475,6 +483,45 @@ export function EventForm({
                       )
                     })}
                   </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
+          {/* Job picker — link to existing or create new */}
+          {watchedType === "job" && (
+            <FormField
+              control={form.control}
+              name="linked_job_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Job</FormLabel>
+                  <FormControl>
+                    <JobPicker
+                      businessId={watchedBusinessId}
+                      value={field.value ?? null}
+                      onChange={(jobId) => {
+                        field.onChange(jobId)
+                        if (jobId) {
+                          const job = jobsList.find((j) => j.id === jobId)
+                          if (job) {
+                            if (job.client_id) {
+                              form.setValue("client_id", job.client_id)
+                            }
+                            if (!form.getValues("title")) {
+                              form.setValue("title", job.title)
+                            }
+                          }
+                        }
+                      }}
+                      disabled={!!event}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Link to an existing job (e.g., a multi-day shoot)
+                    or leave on &quot;Create new job&quot; for a new one.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
