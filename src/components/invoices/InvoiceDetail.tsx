@@ -369,10 +369,10 @@ export function InvoiceDetail({ invoiceId }: Props) {
         )}
       </div>
 
-      {/* Sticky action footer */}
+      {/* Sticky action footer — sits above BottomNav (h-14 + safe-area) */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-20 bg-background/95 backdrop-blur border-t border-border px-4 py-3 flex gap-3"
-        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+        className="fixed left-0 right-0 z-20 bg-background/95 backdrop-blur border-t border-border px-4 py-3 flex gap-3"
+        style={{ bottom: "calc(3.5rem + env(safe-area-inset-bottom))" }}
       >
         {canSend && (
           <Button
