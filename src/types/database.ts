@@ -604,11 +604,163 @@ export type Database = {
         }
         Relationships: []
       }
+      accounts: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          type: string
+          kind: string
+          starting_balance: number
+          business_id: string | null
+          is_active: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          type: string
+          kind: string
+          starting_balance?: number
+          business_id?: string | null
+          is_active?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          type?: string
+          kind?: string
+          starting_balance?: number
+          business_id?: string | null
+          is_active?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      categories: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          kind: string
+          parent_id: string | null
+          color: string | null
+          icon: string | null
+          is_active: boolean
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          kind: string
+          parent_id?: string | null
+          color?: string | null
+          icon?: string | null
+          is_active?: boolean
+          sort_order?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          kind?: string
+          parent_id?: string | null
+          color?: string | null
+          icon?: string | null
+          is_active?: boolean
+          sort_order?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          id: string
+          user_id: string
+          account_id: string
+          transfer_to_account_id: string | null
+          type: string
+          amount: number
+          occurred_on: string
+          description: string
+          business_id: string | null
+          category_id: string | null
+          invoice_id: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          account_id: string
+          transfer_to_account_id?: string | null
+          type: string
+          amount: number
+          occurred_on: string
+          description: string
+          business_id?: string | null
+          category_id?: string | null
+          invoice_id?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          account_id?: string
+          transfer_to_account_id?: string | null
+          type?: string
+          amount?: number
+          occurred_on?: string
+          description?: string
+          business_id?: string | null
+          category_id?: string | null
+          invoice_id?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      accounts_with_balance: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          type: string
+          kind: string
+          starting_balance: number
+          business_id: string | null
+          is_active: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+          current_balance: number
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      account_current_balance: {
+        Args: { p_account_id: string }
+        Returns: number
+      }
       create_job: {
         Args: {
           p_business_id: string
