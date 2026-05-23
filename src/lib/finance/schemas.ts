@@ -73,3 +73,65 @@ export const transactionFormSchema = z
   })
 
 export type TransactionFormValues = z.infer<typeof transactionFormSchema>
+
+export const billFormSchema = z
+  .object({
+    name: z.string().min(1, "Name is required").max(100, "Name must be 100 characters or fewer"),
+    business_id: z.string().nullable(),
+    default_account_id: z.string().uuid("Account is required"),
+    transaction_type: z.enum(["expense", "transfer"]),
+    pays_down_account_id: z.string().uuid().nullable(),
+    default_amount: z.number().positive("Amount must be greater than 0").nullable(),
+    category_id: z.string().uuid().nullable(),
+    frequency_unit: z.enum(["week", "month", "year"]),
+    frequency_interval: z.number().int().positive("Interval must be greater than 0"),
+    anchor_date: z.string().min(1, "Anchor date is required"),
+    end_date: z.string().nullable(),
+    is_active: z.boolean(),
+    notes: z.string().max(500, "Notes must be 500 characters or fewer").nullable(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.transaction_type === "transfer") {
+      if (!data.pays_down_account_id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Destination account is required for transfer bills",
+          path: ["pays_down_account_id"],
+        })
+      } else if (data.pays_down_account_id === data.default_account_id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Destination must differ from default account",
+          path: ["pays_down_account_id"],
+        })
+      }
+    } else {
+      if (data.pays_down_account_id !== null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Pays down account must be empty for expense bills",
+          path: ["pays_down_account_id"],
+        })
+      }
+    }
+    if (data.end_date && data.anchor_date && data.end_date < data.anchor_date) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "End date must be on or after anchor date",
+        path: ["end_date"],
+      })
+    }
+  })
+
+export type BillFormValues = z.infer<typeof billFormSchema>
+
+export const billPaymentFormSchema = z.object({
+  bill_id: z.string().uuid("Bill is required"),
+  amount: z.number().positive("Amount must be greater than 0"),
+  paid_on: z.string().min(1, "Date is required"),
+  period_start: z.string().min(1, "Period start is required"),
+  account_id: z.string().uuid("Account is required"),
+  notes: z.string().max(500, "Notes must be 500 characters or fewer").nullable(),
+})
+
+export type BillPaymentFormValues = z.infer<typeof billPaymentFormSchema>

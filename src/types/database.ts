@@ -699,6 +699,7 @@ export type Database = {
           category_id: string | null
           invoice_id: string | null
           payment_id: string | null
+          bill_payment_id: string | null
           notes: string | null
           created_at: string
           updated_at: string
@@ -716,6 +717,7 @@ export type Database = {
           category_id?: string | null
           invoice_id?: string | null
           payment_id?: string | null
+          bill_payment_id?: string | null
           notes?: string | null
           created_at?: string
           updated_at?: string
@@ -733,11 +735,145 @@ export type Database = {
           category_id?: string | null
           invoice_id?: string | null
           payment_id?: string | null
+          bill_payment_id?: string | null
           notes?: string | null
           created_at?: string
           updated_at?: string
         }
         Relationships: []
+      }
+      bills: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          business_id: string | null
+          default_account_id: string
+          transaction_type: string
+          pays_down_account_id: string | null
+          default_amount: number | null
+          category_id: string | null
+          frequency_unit: string
+          frequency_interval: number
+          anchor_date: string
+          end_date: string | null
+          is_active: boolean
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          business_id?: string | null
+          default_account_id: string
+          transaction_type: string
+          pays_down_account_id?: string | null
+          default_amount?: number | null
+          category_id?: string | null
+          frequency_unit: string
+          frequency_interval: number
+          anchor_date: string
+          end_date?: string | null
+          is_active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          business_id?: string | null
+          default_account_id?: string
+          transaction_type?: string
+          pays_down_account_id?: string | null
+          default_amount?: number | null
+          category_id?: string | null
+          frequency_unit?: string
+          frequency_interval?: number
+          anchor_date?: string
+          end_date?: string | null
+          is_active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bills_default_account_id_fkey"
+            columns: ["default_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_pays_down_account_id_fkey"
+            columns: ["pays_down_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bill_payments: {
+        Row: {
+          id: string
+          user_id: string
+          bill_id: string
+          amount: number
+          paid_on: string
+          period_start: string
+          account_id: string
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          bill_id: string
+          amount: number
+          paid_on: string
+          period_start: string
+          account_id: string
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          bill_id?: string
+          amount?: number
+          paid_on?: string
+          period_start?: string
+          account_id?: string
+          notes?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_payments_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_payments_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -794,6 +930,10 @@ export type Database = {
       recalculate_invoice_state: {
         Args: { p_invoice_id: string }
         Returns: undefined
+      }
+      bill_next_due_date: {
+        Args: { p_bill_id: string }
+        Returns: string | null
       }
     }
     Enums: {
