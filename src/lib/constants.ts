@@ -3,50 +3,66 @@ export type Business = {
   name: string
   color: string
   textColor: "white" | "black"
+  invoice_logo?: string        // path under /public, e.g. "/business-logos/b-keim-rewind.png"
+  invoice_display_name?: string // override `name` on invoices (used when no logo)
 }
 
 export const BUSINESSES: Business[] = [
   {
     id: "b-keim-rewind-marketing",
     name: "B Keim Rewind Marketing",
-    color: "#0D9488",
+    color: "#15422E",
     textColor: "white",
+    invoice_logo: "/business-logos/b-keim-rewind.png",
   },
   {
     id: "happily-ever-after-weddings",
-    name: "Happily Ever After Weddings",
+    name: "Happily Ever After Media Co",
     color: "#E11D48",
     textColor: "white",
+    invoice_logo: "/business-logos/happily-ever-after.png",
   },
   {
     id: "remember-when-phone-booth",
     name: "Remember When Phone Booth",
-    color: "#B45309",
+    color: "#3F1A0A",
     textColor: "white",
+    invoice_logo: "/business-logos/remember-when.png",
   },
   {
     id: "brandon-keim-contract-work",
     name: "Brandon Keim Contract Work",
     color: "#475569",
     textColor: "white",
+    invoice_display_name: "Brandon Keim",
   },
   {
     id: "brandon-keim-legal-work",
     name: "Brandon Keim Legal Work",
     color: "#1E3A8A",
     textColor: "white",
+    invoice_display_name: "Brandon Keim",
   },
   {
     id: "equipment-rental",
     name: "Equipment Rental",
     color: "#EA580C",
     textColor: "white",
+    invoice_display_name: "Brandon Keim",
   },
   {
     id: "keim-time",
     name: "Keim Time",
     color: "#7C3AED",
     textColor: "white",
+    invoice_logo: "/business-logos/keim-time.png",
+  },
+  {
+    id: "keim-golf",
+    name: "Keim Golf",
+    color: "#15803D",
+    textColor: "white",
+    // No invoice fields — in-app scheduling only
   },
 ]
 
@@ -58,6 +74,7 @@ export const BUSINESS_PREFIXES: Record<string, string> = {
   "brandon-keim-legal-work":    "BKLW",
   "equipment-rental":            "RENT",
   "keim-time":                   "KTME",
+  "keim-golf":                   "KGLF",
 }
 
 export const GOLF_PURPOSES = [

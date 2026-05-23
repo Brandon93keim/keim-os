@@ -8,6 +8,7 @@ export const BUSINESS_IDS = [
   "brandon-keim-legal-work",
   "equipment-rental",
   "keim-time",
+  "keim-golf",
 ] as const
 
 export type BusinessId = (typeof BUSINESS_IDS)[number]
