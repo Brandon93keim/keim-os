@@ -1,4 +1,4 @@
-import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer"
+import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer"
 import { format, parseISO } from "date-fns"
 import { getEffectiveStatus, STATUS_LABELS, STATUS_COLORS } from "@/lib/invoiceStatus"
 import type { Invoice, InvoiceLineItem, Payment, InvoiceClient } from "@/lib/queries/invoices"
@@ -250,7 +250,16 @@ export default function InvoicePdfDocument({
 
         {/* Header band */}
         <View style={[s.header, { backgroundColor: business.color }]}>
-          <Text style={s.headerBizName}>{business.name}</Text>
+          {business.invoice_logo ? (
+            <Image
+              src={business.invoice_logo}
+              style={{ width: 140, height: "auto", maxHeight: 60, objectFit: "contain" }}
+            />
+          ) : (
+            <Text style={s.headerBizName}>
+              {business.invoice_display_name ?? business.name}
+            </Text>
+          )}
           <View style={s.headerRight}>
             <Text style={s.headerTitle}>INVOICE</Text>
             {invoice.invoice_number && (
