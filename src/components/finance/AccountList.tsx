@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, ChevronDown, ChevronUp, Wallet } from "lucide-react"
+import { Plus, ChevronDown, ChevronUp, Wallet, ArrowRight } from "lucide-react"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { useAllAccounts } from "@/lib/hooks/useAccounts"
 import { formatCurrency } from "@/lib/finance/format"
@@ -144,6 +145,17 @@ export function AccountList() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* View all transactions link */}
+      <div className="border-b border-border px-4 py-3">
+        <Link
+          href="/money/transactions"
+          className="flex items-center justify-between text-sm font-medium text-primary hover:opacity-80 transition-opacity"
+        >
+          View all transactions
+          <ArrowRight size={16} />
+        </Link>
       </div>
 
       {/* Error state */}

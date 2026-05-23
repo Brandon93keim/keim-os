@@ -49,3 +49,8 @@ export type Category = {
 export type AccountWithBalance = Account & {
   current_balance: number;
 };
+
+export type TransactionWithRelations = Transaction & {
+  account: { id: string; name: string; kind: AccountKind } | null;
+  transfer_to_account: { id: string; name: string } | null;
+};
