@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
   listTransactions,
+  listAccountTransactions,
   createTransaction,
   updateTransaction as updateTransactionQuery,
   deleteTransaction as deleteTransactionQuery,
@@ -17,6 +18,14 @@ export function useTransactions(filters?: TransactionFilters) {
   return useQuery({
     queryKey: ["transactions", filters],
     queryFn: () => listTransactions(filters),
+  })
+}
+
+export function useAccountTransactions(accountId: string) {
+  return useQuery({
+    queryKey: ["transactions", "account", accountId],
+    queryFn: () => listAccountTransactions(accountId),
+    enabled: !!accountId,
   })
 }
 

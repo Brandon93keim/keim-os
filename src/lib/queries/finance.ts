@@ -159,3 +159,28 @@ export async function deleteTransaction(id: string): Promise<void> {
   const { error } = await supabase.from("transactions").delete().eq("id", id)
   if (error) throw error
 }
+
+export async function listAccountTransactions(
+  accountId: string
+): Promise<TransactionWithRelations[]> {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const { data, error } = await supabase
+    .from("transactions")
+    .select(`
+      *,
+      account:accounts!account_id(id, name, kind),
+      transfer_to_account:accounts!transfer_to_account_id(id, name)
+    `)
+    .eq("user_id", user.id)
+    .or(`account_id.eq.${accountId},transfer_to_account_id.eq.${accountId}`)
+    .order("occurred_on", { ascending: false })
+    .order("created_at", { ascending: false })
+
+  if (error) throw error
+  return (data ?? []) as unknown as TransactionWithRelations[]
+}

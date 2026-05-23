@@ -8,9 +8,10 @@ interface Props {
   open: boolean
   onClose: () => void
   transaction?: TransactionWithRelations
+  defaultAccountId?: string
 }
 
-export function TransactionFormSheet({ open, onClose, transaction }: Props) {
+export function TransactionFormSheet({ open, onClose, transaction, defaultAccountId }: Props) {
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
       <SheetContent
@@ -22,7 +23,12 @@ export function TransactionFormSheet({ open, onClose, transaction }: Props) {
         <SheetHeader className="px-4 pt-5 pb-3 border-b border-border shrink-0">
           <SheetTitle>{transaction ? "Edit Transaction" : "New Transaction"}</SheetTitle>
         </SheetHeader>
-        <TransactionForm transaction={transaction} onSuccess={onClose} onCancel={onClose} />
+        <TransactionForm
+          transaction={transaction}
+          defaultAccountId={defaultAccountId}
+          onSuccess={onClose}
+          onCancel={onClose}
+        />
       </SheetContent>
     </Sheet>
   )

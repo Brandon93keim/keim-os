@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Plus, ChevronDown, ChevronUp, Wallet, ArrowRight } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useAllAccounts } from "@/lib/hooks/useAccounts"
 import { formatCurrency } from "@/lib/finance/format"
@@ -24,7 +25,7 @@ function AccountRow({
   onTap,
 }: {
   account: AccountWithBalance
-  onTap: (account: AccountWithBalance) => void
+  onTap: (id: string) => void
 }) {
   const business = account.business_id ? getBusinessById(account.business_id) : null
   const isLiability = account.kind === "liability"
@@ -33,7 +34,7 @@ function AccountRow({
   return (
     <button
       type="button"
-      onClick={() => onTap(account)}
+      onClick={() => onTap(account.id)}
       className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-muted/60 hover:bg-muted/40"
     >
       {/* Business color dot */}
@@ -83,24 +84,17 @@ function SectionSkeleton() {
 }
 
 export function AccountList() {
+  const router = useRouter()
   const { data: accounts, isLoading, error } = useAllAccounts()
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [editTarget, setEditTarget] = useState<AccountWithBalance | undefined>(undefined)
   const [inactiveOpen, setInactiveOpen] = useState(false)
 
   function openNew() {
-    setEditTarget(undefined)
     setSheetOpen(true)
   }
 
-  function openEdit(account: AccountWithBalance) {
-    setEditTarget(account)
-    setSheetOpen(true)
-  }
-
-  function closeSheet() {
-    setSheetOpen(false)
-    setEditTarget(undefined)
+  function navigateToLedger(id: string) {
+    router.push(`/money/accounts/${id}`)
   }
 
   const assets = accounts?.filter((a) => a.kind === "asset" && a.is_active) ?? []
@@ -179,7 +173,7 @@ export function AccountList() {
               <p className="px-4 py-4 text-sm text-muted-foreground">No asset accounts.</p>
             ) : (
               assets.map((account) => (
-                <AccountRow key={account.id} account={account} onTap={openEdit} />
+                <AccountRow key={account.id} account={account} onTap={navigateToLedger} />
               ))
             )}
           </div>
@@ -197,7 +191,7 @@ export function AccountList() {
               <p className="px-4 py-4 text-sm text-muted-foreground">No liability accounts.</p>
             ) : (
               liabilities.map((account) => (
-                <AccountRow key={account.id} account={account} onTap={openEdit} />
+                <AccountRow key={account.id} account={account} onTap={navigateToLedger} />
               ))
             )}
           </div>
@@ -223,7 +217,7 @@ export function AccountList() {
             {inactiveOpen && (
               <div className="divide-y divide-border border-y border-border">
                 {inactive.map((account) => (
-                  <AccountRow key={account.id} account={account} onTap={openEdit} />
+                  <AccountRow key={account.id} account={account} onTap={navigateToLedger} />
                 ))}
               </div>
             )}
@@ -253,8 +247,8 @@ export function AccountList() {
         <Plus size={24} strokeWidth={2.5} />
       </button>
 
-      {/* Add / Edit sheet */}
-      <AccountFormSheet open={sheetOpen} onClose={closeSheet} account={editTarget} />
+      {/* Add account sheet */}
+      <AccountFormSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
     </div>
   )
 }

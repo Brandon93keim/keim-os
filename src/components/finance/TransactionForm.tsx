@@ -45,11 +45,12 @@ function todayISO() {
 
 interface Props {
   transaction?: TransactionWithRelations
+  defaultAccountId?: string
   onSuccess: () => void
   onCancel: () => void
 }
 
-export function TransactionForm({ transaction, onSuccess, onCancel }: Props) {
+export function TransactionForm({ transaction, defaultAccountId, onSuccess, onCancel }: Props) {
   const createTransaction = useCreateTransaction()
   const updateTransaction = useUpdateTransaction()
   const deleteTransaction = useDeleteTransaction()
@@ -72,7 +73,7 @@ export function TransactionForm({ transaction, onSuccess, onCancel }: Props) {
         }
       : {
           type: "expense",
-          account_id: "",
+          account_id: defaultAccountId ?? "",
           transfer_to_account_id: null,
           amount: 0,
           occurred_on: todayISO(),
