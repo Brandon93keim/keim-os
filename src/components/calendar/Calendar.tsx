@@ -57,8 +57,11 @@ export function Calendar() {
   // Compute query window based on view
   const queryWindow = (() => {
     if (view === "month") {
-      const days = getCalendarDays(anchorDate)
-      return { start: days[0], end: addDays(days[41], 1) }
+      // Fixed ±12-month window centered on today — covers all 25 rendered sections
+      const base = startOfDay(new Date())
+      const firstDay = getCalendarDays(subMonths(base, 12))[0]
+      const lastDay = getCalendarDays(addMonths(base, 12))[41]
+      return { start: firstDay, end: addDays(lastDay, 1) }
     }
     if (view === "week") {
       const days = getWeekDays(anchorDate)
@@ -176,8 +179,7 @@ export function Calendar() {
             selectedDate={selectedDate}
             events={events}
             onDayTap={handleDayTap}
-            onPrev={goPrev}
-            onNext={goNext}
+            onAnchorChange={(d) => { setAnchorDate(d); setSelectedDate(null) }}
           />
         )}
         {view === "week" && (
