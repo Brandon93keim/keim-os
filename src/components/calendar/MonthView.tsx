@@ -146,7 +146,7 @@ export function MonthView({ anchorDate, selectedDate, events, onDayTap, onAnchor
               const { segments, overflow } = computeWeekBars(events, weekStart)
 
               return (
-                <div key={weekIdx} className="relative grid grid-cols-7 min-h-[60px]">
+                <div key={weekIdx} className="relative grid grid-cols-7 min-h-[90px]">
                   {week.map((day, colIdx) => {
                     const reminderEvents = getReminderEventsForDay(events, day)
                     const dots = getReminderDots(reminderEvents)
@@ -213,19 +213,23 @@ export function MonthView({ anchorDate, selectedDate, events, onDayTap, onAnchor
                     {segments.map((seg, i) => (
                       <div
                         key={`${seg.event.id}-${monthIdx}-${weekIdx}-${i}`}
-                        className="absolute"
+                        className="absolute flex items-center overflow-hidden"
                         style={{
                           left: `calc(${(seg.startCol / 7) * 100}% + 2px)`,
                           width: `calc(${((seg.endCol - seg.startCol + 1) / 7) * 100}% - 4px)`,
-                          top: seg.lane * 7,
-                          height: 5,
+                          top: seg.lane * 18,
+                          height: 16,
                           backgroundColor: seg.color,
                           borderTopLeftRadius: seg.continuesBefore ? 0 : 2,
                           borderBottomLeftRadius: seg.continuesBefore ? 0 : 2,
                           borderTopRightRadius: seg.continuesAfter ? 0 : 2,
                           borderBottomRightRadius: seg.continuesAfter ? 0 : 2,
                         }}
-                      />
+                      >
+                        <span className="truncate text-[10px] leading-tight px-1 text-white font-medium">
+                          {seg.event.title}
+                        </span>
+                      </div>
                     ))}
                   </div>
                 </div>
