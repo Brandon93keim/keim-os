@@ -278,24 +278,59 @@ export async function markInvoiceVoid(id: string): Promise<void> {
   if (error) throw error
 }
 
+export interface RecordPaymentContext {
+  invoiceId: string
+  businessId: string
+  invoiceNumber: string | null
+  clientName: string | null
+}
+
 export async function recordPayment(
-  invoiceId: string,
+  ctx: RecordPaymentContext,
   values: PaymentFormValues
 ): Promise<void> {
   const supabase = createClient()
   const userId = await getUserId()
+  const occurredOn = format(values.payment_date, "yyyy-MM-dd")
 
-  const { error } = await supabase.from("payments").insert({
+  const { data: payment, error: payErr } = await supabase
+    .from("payments")
+    .insert({
+      user_id: userId,
+      invoice_id: ctx.invoiceId,
+      amount: values.amount,
+      payment_date: occurredOn,
+      method: values.method,
+      reference: values.reference || null,
+      notes: values.notes || null,
+    })
+    .select("id")
+    .single()
+
+  if (payErr || !payment) throw payErr ?? new Error("Failed to insert payment")
+
+  const description = ctx.invoiceNumber && ctx.clientName
+    ? `Payment for ${ctx.invoiceNumber} — ${ctx.clientName}`
+    : ctx.invoiceNumber
+      ? `Payment for ${ctx.invoiceNumber}`
+      : "Invoice payment"
+
+  const { error: txErr } = await supabase.from("transactions").insert({
     user_id: userId,
-    invoice_id: invoiceId,
+    account_id: values.account_id,
+    type: "income",
     amount: values.amount,
-    payment_date: format(values.payment_date, "yyyy-MM-dd"),
-    method: values.method,
-    reference: values.reference || null,
-    notes: values.notes || null,
+    occurred_on: occurredOn,
+    description,
+    business_id: ctx.businessId,
+    invoice_id: ctx.invoiceId,
+    payment_id: payment.id,
   })
 
-  if (error) throw error
+  if (txErr) {
+    await supabase.from("payments").delete().eq("id", payment.id)
+    throw txErr
+  }
 }
 
 export async function deletePayment(paymentId: string): Promise<void> {

@@ -53,6 +53,7 @@ export const paymentFormSchema = z.object({
   amount: z.number().positive("Amount must be greater than 0"),
   payment_date: z.date(),
   method: paymentMethodSchema,
+  account_id: z.string().uuid("Select an account"),
   reference: z.string().optional(),
   notes: z.string().optional(),
 })

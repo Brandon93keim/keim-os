@@ -1,9 +1,11 @@
 "use client"
 
+import { useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { paymentFormSchema, type PaymentFormValues, PAYMENT_METHOD_LABELS } from "@/lib/validations/invoice"
 import { useRecordPayment } from "@/lib/hooks/useInvoices"
+import { useAllAccounts } from "@/lib/hooks/useAccounts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -37,10 +39,25 @@ interface Props {
   onClose: () => void
   invoiceId: string
   amountDue: number
+  businessId: string
+  invoiceNumber: string | null
+  clientName: string | null
 }
 
-export function RecordPaymentDialog({ open, onClose, invoiceId, amountDue }: Props) {
-  const recordPayment = useRecordPayment(invoiceId)
+export function RecordPaymentDialog({
+  open, onClose, invoiceId, amountDue, businessId, invoiceNumber, clientName,
+}: Props) {
+  const { data: accounts = [] } = useAllAccounts()
+  const assetAccounts = useMemo(
+    () => accounts.filter(a => a.kind === "asset" && a.is_active),
+    [accounts]
+  )
+  const defaultAccountId = useMemo(() => {
+    const personal = assetAccounts.find(a => a.name === "Personal Checking")
+    return personal?.id ?? assetAccounts[0]?.id ?? ""
+  }, [assetAccounts])
+
+  const recordPayment = useRecordPayment({ invoiceId, businessId, invoiceNumber, clientName })
 
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentFormSchema),
@@ -48,12 +65,12 @@ export function RecordPaymentDialog({ open, onClose, invoiceId, amountDue }: Pro
       amount: amountDue > 0 ? amountDue : 0,
       payment_date: new Date(),
       method: "check",
+      account_id: defaultAccountId,
       reference: "",
       notes: "",
     },
   })
 
-  // Keep default amount in sync when dialog re-opens with a new amountDue
   const isSubmitting = form.formState.isSubmitting
 
   function handleOpenChange(o: boolean) {
@@ -62,6 +79,7 @@ export function RecordPaymentDialog({ open, onClose, invoiceId, amountDue }: Pro
         amount: amountDue > 0 ? amountDue : 0,
         payment_date: new Date(),
         method: "check",
+        account_id: defaultAccountId,
         reference: "",
         notes: "",
       })
@@ -165,6 +183,30 @@ export function RecordPaymentDialog({ open, onClose, invoiceId, amountDue }: Pro
                           <SelectItem key={value} value={value}>{label}</SelectItem>
                         )
                       )}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Deposited to */}
+            <FormField
+              control={form.control}
+              name="account_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Deposited to *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an account" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {assetAccounts.map(a => (
+                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

@@ -17,6 +17,7 @@ import {
 } from "@/lib/queries/invoices"
 import { getUnbilledJobs, isEventBilled } from "@/lib/queries/jobs"
 import type { InvoiceFormValues, PaymentFormValues } from "@/lib/validations/invoice"
+import type { RecordPaymentContext } from "@/lib/queries/invoices"
 
 export function useInvoices() {
   return useQuery({
@@ -157,13 +158,15 @@ export function useMarkInvoiceVoid() {
   })
 }
 
-export function useRecordPayment(invoiceId: string) {
+export function useRecordPayment(ctx: RecordPaymentContext) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (values: PaymentFormValues) => recordPaymentQuery(invoiceId, values),
+    mutationFn: (values: PaymentFormValues) => recordPaymentQuery(ctx, values),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] })
-      queryClient.invalidateQueries({ queryKey: ["invoices", invoiceId] })
+      queryClient.invalidateQueries({ queryKey: ["invoices", ctx.invoiceId] })
+      queryClient.invalidateQueries({ queryKey: ["accounts"] })
+      queryClient.invalidateQueries({ queryKey: ["transactions"] })
       toast.success("Payment recorded")
     },
     onError: (err: Error) => {
@@ -179,6 +182,8 @@ export function useDeletePayment(invoiceId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] })
       queryClient.invalidateQueries({ queryKey: ["invoices", invoiceId] })
+      queryClient.invalidateQueries({ queryKey: ["accounts"] })
+      queryClient.invalidateQueries({ queryKey: ["transactions"] })
       toast.success("Payment removed")
     },
     onError: (err: Error) => {

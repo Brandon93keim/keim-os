@@ -28,6 +28,7 @@ export type Transaction = {
   business_id: string | null;
   category_id: string | null;
   invoice_id: string | null;
+  payment_id: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;

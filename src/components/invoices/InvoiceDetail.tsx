@@ -427,6 +427,9 @@ export function InvoiceDetail({ invoiceId }: Props) {
         onClose={() => setPaymentOpen(false)}
         invoiceId={invoiceId}
         amountDue={amountDue}
+        businessId={invoice.business_id}
+        invoiceNumber={invoice.invoice_number}
+        clientName={invoice.client?.name ?? null}
       />
 
       {/* Delete invoice confirm */}
