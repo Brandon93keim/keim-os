@@ -152,6 +152,17 @@ export function AccountList() {
         </Link>
       </div>
 
+      {/* View all bills link */}
+      <div className="border-b border-border px-4 py-3">
+        <Link
+          href="/money/bills"
+          className="flex items-center justify-between text-sm font-medium text-primary hover:opacity-80 transition-opacity"
+        >
+          View all bills
+          <ArrowRight size={16} />
+        </Link>
+      </div>
+
       {/* Error state */}
       {error && (
         <div className="px-4 py-8 text-center text-sm text-muted-foreground">

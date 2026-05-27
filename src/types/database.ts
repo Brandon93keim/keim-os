@@ -894,6 +894,29 @@ export type Database = {
         }
         Relationships: []
       }
+      bills_with_next_due: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          business_id: string | null
+          default_account_id: string
+          transaction_type: string
+          pays_down_account_id: string | null
+          default_amount: number | null
+          category_id: string | null
+          frequency_unit: string
+          frequency_interval: number
+          anchor_date: string
+          end_date: string | null
+          is_active: boolean
+          notes: string | null
+          created_at: string
+          updated_at: string
+          next_due_date: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       account_current_balance: {
