@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/client"
 import type { BillWithNextDue, BillPayment } from "@/lib/finance/types"
-import type { BillPaymentFormValues } from "@/lib/finance/schemas"
+import type { BillFormValues, BillPaymentFormValues } from "@/lib/finance/schemas"
 
 export interface RecordBillPaymentContext {
   billId: string
@@ -52,6 +52,65 @@ export async function listRecentBillPayments(daysBack: number): Promise<BillPaym
 
   if (error) throw error
   return (data ?? []) as unknown as BillPayment[]
+}
+
+export async function createBill(values: BillFormValues): Promise<void> {
+  const supabase = createClient()
+  const userId = await getUserId()
+  const { error } = await supabase.from("bills").insert({
+    user_id: userId,
+    name: values.name,
+    business_id: values.business_id,
+    default_account_id: values.default_account_id,
+    transaction_type: values.transaction_type,
+    pays_down_account_id:
+      values.transaction_type === "transfer" ? values.pays_down_account_id : null,
+    default_amount: values.default_amount,
+    category_id: null,
+    frequency_unit: values.frequency_unit,
+    frequency_interval: values.frequency_interval,
+    anchor_date: values.anchor_date,
+    end_date: values.end_date,
+    is_active: values.is_active,
+    notes: values.notes,
+  })
+  if (error) throw error
+}
+
+export async function updateBill(id: string, values: BillFormValues): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from("bills")
+    .update({
+      name: values.name,
+      business_id: values.business_id,
+      default_account_id: values.default_account_id,
+      transaction_type: values.transaction_type,
+      pays_down_account_id:
+        values.transaction_type === "transfer" ? values.pays_down_account_id : null,
+      default_amount: values.default_amount,
+      category_id: null,
+      frequency_unit: values.frequency_unit,
+      frequency_interval: values.frequency_interval,
+      anchor_date: values.anchor_date,
+      end_date: values.end_date,
+      is_active: values.is_active,
+      notes: values.notes,
+    })
+    .eq("id", id)
+  if (error) throw error
+}
+
+export async function setBillActive(id: string, is_active: boolean): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from("bills").update({ is_active }).eq("id", id)
+  if (error) throw error
+}
+
+export async function deleteBill(id: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from("bills").delete().eq("id", id)
+  if (error) throw error
 }
 
 export async function recordBillPayment(
