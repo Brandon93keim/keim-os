@@ -175,6 +175,7 @@ export function useRecordBillPayment(ctx: RecordBillPaymentContext) {
       queryClient.invalidateQueries({ queryKey: ["committed-outflows"] })
       queryClient.invalidateQueries({ queryKey: ["accounts"] })
       queryClient.invalidateQueries({ queryKey: ["transactions"] })
+      queryClient.invalidateQueries({ queryKey: ["business-pnl"] })
       toast.success("Payment recorded")
     },
     onError: (err: Error) => {

@@ -160,6 +160,33 @@ export async function deleteTransaction(id: string): Promise<void> {
   if (error) throw error
 }
 
+export async function listPnLTransactions(
+  dateFrom: string,
+  dateTo: string
+): Promise<TransactionWithRelations[]> {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const { data, error } = await supabase
+    .from("transactions")
+    .select(`
+      *,
+      account:accounts!account_id(id, name, kind),
+      transfer_to_account:accounts!transfer_to_account_id(id, name)
+    `)
+    .eq("user_id", user.id)
+    .in("type", ["income", "expense"])
+    .gte("occurred_on", dateFrom)
+    .lte("occurred_on", dateTo)
+    .order("occurred_on", { ascending: false })
+
+  if (error) throw error
+  return (data ?? []) as unknown as TransactionWithRelations[]
+}
+
 export async function listAccountTransactions(
   accountId: string
 ): Promise<TransactionWithRelations[]> {
