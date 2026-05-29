@@ -13,6 +13,7 @@ import {
   type LineItemFormInput,
   DEFAULT_TERMS,
   PAYMENT_METHOD_LABELS,
+  DUE_TERM_LABELS,
 } from "@/lib/validations/invoice"
 import { BUSINESSES, getBusinessById } from "@/lib/constants"
 import { BUSINESS_IDS } from "@/lib/validations/client"
@@ -60,6 +61,7 @@ function buildDefaults(invoice?: Invoice | null, prefillJob?: UnbilledJob | null
       client_id: invoice.client_id,
       issue_date: new Date(invoice.issue_date),
       due_date: new Date(invoice.due_date),
+      due_terms: invoice.due_terms ?? 'custom',
       tax_rate: invoice.tax_rate,
       discount_amount: invoice.discount_amount,
       notes: invoice.notes ?? "",
@@ -92,6 +94,7 @@ function buildDefaults(invoice?: Invoice | null, prefillJob?: UnbilledJob | null
       client_id: prefillJob.client_id ?? "",
       issue_date: today,
       due_date: addDays(today, 30),
+      due_terms: 'net_30' as const,
       tax_rate: 0,
       discount_amount: 0,
       notes: "",
@@ -106,6 +109,7 @@ function buildDefaults(invoice?: Invoice | null, prefillJob?: UnbilledJob | null
     client_id: "",
     issue_date: today,
     due_date: addDays(today, 30),
+    due_terms: 'net_30' as const,
     tax_rate: 0,
     discount_amount: 0,
     notes: "",
@@ -136,6 +140,8 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
   const watchedBusinessId = form.watch("business_id")
   const watchedClientId = form.watch("client_id")
   const watchedIssueDate = form.watch("issue_date")
+  const watchedDueTerms = form.watch("due_terms")
+  const watchedDueDate = form.watch("due_date")
   const watchedLineItems = form.watch("line_items")
   const watchedTaxRate = form.watch("tax_rate")
   const watchedDiscount = form.watch("discount_amount")
@@ -153,6 +159,18 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
       form.setValue("email_address", selectedClient.email)
     }
   }, [selectedClient?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Recompute due_date whenever issue_date or due_terms changes (for non-custom terms)
+  useEffect(() => {
+    if (watchedDueTerms === 'on_receipt') {
+      form.setValue("due_date", watchedIssueDate)
+    } else if (watchedDueTerms === 'net_15') {
+      form.setValue("due_date", addDays(watchedIssueDate, 15))
+    } else if (watchedDueTerms === 'net_30') {
+      form.setValue("due_date", addDays(watchedIssueDate, 30))
+    }
+    // custom: do not recompute
+  }, [watchedIssueDate, watchedDueTerms]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live totals
   const subtotal = watchedLineItems.reduce(
@@ -290,41 +308,69 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
             )}
           />
 
-          {/* Dates */}
-          <div className="grid grid-cols-2 gap-3">
-            <FormField
-              control={form.control}
-              name="issue_date"
-              render={({ field }) => (
-                <DatePickerField
-                  label="Issue date *"
-                  value={field.value}
-                  onChange={(d) => {
-                    field.onChange(d)
-                    // Shift due date to maintain 30-day gap if it's before new issue date
-                    const currentDue = form.getValues("due_date")
-                    if (currentDue < d) {
-                      form.setValue("due_date", addDays(d, 30))
-                    }
-                  }}
-                  error={form.formState.errors.issue_date?.message}
-                />
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="due_date"
-              render={({ field }) => (
-                <DatePickerField
-                  label="Due date *"
-                  value={field.value}
-                  onChange={field.onChange}
-                  minDate={watchedIssueDate}
-                  error={form.formState.errors.due_date?.message}
-                />
-              )}
-            />
-          </div>
+          {/* Issue Date */}
+          <FormField
+            control={form.control}
+            name="issue_date"
+            render={({ field }) => (
+              <DatePickerField
+                label="Issue date *"
+                value={field.value}
+                onChange={field.onChange}
+                error={form.formState.errors.issue_date?.message}
+              />
+            )}
+          />
+
+          {/* Payment Terms */}
+          <FormField
+            control={form.control}
+            name="due_terms"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Payment terms *</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {(Object.keys(DUE_TERM_LABELS) as Array<keyof typeof DUE_TERM_LABELS>).map((key) => (
+                      <SelectItem key={key} value={key}>{DUE_TERM_LABELS[key]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Due Date — picker for custom, read-only computed for fixed terms */}
+          {watchedDueTerms !== 'on_receipt' && (
+            watchedDueTerms === 'custom' ? (
+              <FormField
+                control={form.control}
+                name="due_date"
+                render={({ field }) => (
+                  <DatePickerField
+                    label="Due date *"
+                    value={field.value}
+                    onChange={field.onChange}
+                    minDate={watchedIssueDate}
+                    error={form.formState.errors.due_date?.message}
+                  />
+                )}
+              />
+            ) : (
+              <div className="space-y-1.5">
+                <Label>Due date</Label>
+                <div className="h-10 flex items-center text-sm px-3 rounded-md border border-input bg-muted/30 text-muted-foreground">
+                  {watchedDueDate ? format(watchedDueDate, "MMM d, yyyy") : "—"}
+                </div>
+              </div>
+            )
+          )}
 
           {/* Line items */}
           <div>

@@ -21,7 +21,14 @@ export const PAYMENT_METHOD_LABELS: Record<z.infer<typeof paymentMethodSchema>, 
 }
 
 export const DEFAULT_TERMS =
-  "Payment due within 30 days. Late payments subject to 1.5% monthly interest."
+  "Late payments subject to 1.5% monthly interest."
+
+export const DUE_TERM_LABELS: Record<'on_receipt' | 'net_15' | 'net_30' | 'custom', string> = {
+  on_receipt: 'On Receipt',
+  net_15: 'Net 15',
+  net_30: 'Net 30',
+  custom: 'Custom',
+}
 
 export const lineItemFormSchema = z.object({
   id: z.string().optional(),
@@ -37,6 +44,7 @@ export const invoiceFormSchema = z
     client_id: z.string().uuid("Select a client"),
     issue_date: z.date(),
     due_date: z.date(),
+    due_terms: z.enum(['on_receipt', 'net_15', 'net_30', 'custom']),
     tax_rate: z.number().min(0).max(100).default(0),
     discount_amount: z.number().nonnegative().default(0),
     notes: z.string().max(2000).optional(),

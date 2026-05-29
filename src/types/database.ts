@@ -425,6 +425,7 @@ export type Database = {
           created_at: string
           discount_amount: number
           due_date: string
+          due_terms: string
           email_address: string | null
           id: string
           invoice_number: string | null
@@ -449,6 +450,7 @@ export type Database = {
           created_at?: string
           discount_amount?: number
           due_date: string
+          due_terms?: string
           email_address?: string | null
           id?: string
           invoice_number?: string | null
@@ -473,6 +475,7 @@ export type Database = {
           created_at?: string
           discount_amount?: number
           due_date?: string
+          due_terms?: string
           email_address?: string | null
           id?: string
           invoice_number?: string | null

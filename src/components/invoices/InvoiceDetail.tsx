@@ -12,7 +12,7 @@ import { useProfile } from "@/lib/hooks/useProfile"
 import { getEffectiveStatus } from "@/lib/invoiceStatus"
 import { downloadInvoicePdf } from "@/lib/pdf"
 import { getBusinessById } from "@/lib/constants"
-import { PAYMENT_METHOD_LABELS } from "@/lib/validations/invoice"
+import { PAYMENT_METHOD_LABELS, DUE_TERM_LABELS } from "@/lib/validations/invoice"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -265,7 +265,12 @@ export function InvoiceDetail({ invoiceId }: Props) {
                   Due date
                 </div>
                 <div className={cn("text-sm", isOverdue && "text-red-600 font-medium")}>
-                  {format(parseISO(invoice.due_date), "MMMM d, yyyy")}
+                  {(invoice.due_terms ?? 'custom') === 'on_receipt'
+                    ? "Due on receipt"
+                    : (invoice.due_terms === 'net_15' || invoice.due_terms === 'net_30')
+                      ? `${format(parseISO(invoice.due_date), "MMM d, yyyy")} · ${DUE_TERM_LABELS[invoice.due_terms]}`
+                      : format(parseISO(invoice.due_date), "MMMM d, yyyy")
+                  }
                   {isOverdue && " · Overdue"}
                 </div>
               </div>

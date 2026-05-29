@@ -4,6 +4,7 @@ import { getEffectiveStatus, STATUS_LABELS, STATUS_COLORS } from "@/lib/invoiceS
 import type { Invoice, InvoiceLineItem, Payment, InvoiceClient } from "@/lib/queries/invoices"
 import type { Business } from "@/lib/constants"
 import { INVOICE_REMIT } from "@/lib/constants"
+import { DUE_TERM_LABELS } from "@/lib/validations/invoice"
 
 interface Props {
   invoice: Invoice
@@ -310,7 +311,12 @@ export default function InvoicePdfDocument({
           <View style={s.metaCol}>
             <Text style={s.metaLabel}>Due Date</Text>
             <Text style={s.metaValue}>
-              {format(parseISO(invoice.due_date), "MMM d, yyyy")}
+              {(invoice.due_terms ?? 'custom') === 'on_receipt'
+                ? "Due on receipt"
+                : (invoice.due_terms === 'net_15' || invoice.due_terms === 'net_30')
+                  ? `${format(parseISO(invoice.due_date), "MMM d, yyyy")} · ${DUE_TERM_LABELS[invoice.due_terms]}`
+                  : format(parseISO(invoice.due_date), "MMM d, yyyy")
+              }
             </Text>
           </View>
           <View style={s.metaCol}>

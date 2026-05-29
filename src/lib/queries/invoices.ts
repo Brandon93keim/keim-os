@@ -16,6 +16,7 @@ export interface InvoiceRow {
   status: string
   issue_date: string
   due_date: string
+  due_terms: 'on_receipt' | 'net_15' | 'net_30' | 'custom'
   subtotal: number
   tax_rate: number
   tax_amount: number
@@ -153,6 +154,7 @@ export async function createInvoice(values: InvoiceFormValues): Promise<InvoiceR
       client_id: values.client_id,
       issue_date: format(values.issue_date, "yyyy-MM-dd"),
       due_date: format(values.due_date, "yyyy-MM-dd"),
+      due_terms: values.due_terms,
       tax_rate: values.tax_rate,
       discount_amount: values.discount_amount,
       notes: values.notes || null,
@@ -212,6 +214,7 @@ export async function updateInvoice(id: string, values: InvoiceFormValues): Prom
       client_id: values.client_id,
       issue_date: format(values.issue_date, "yyyy-MM-dd"),
       due_date: format(values.due_date, "yyyy-MM-dd"),
+      due_terms: values.due_terms,
       tax_rate: values.tax_rate,
       discount_amount: values.discount_amount,
       notes: values.notes || null,
