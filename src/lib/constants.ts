@@ -66,6 +66,14 @@ export const BUSINESSES: Business[] = [
   },
 ]
 
+export const INVOICE_REMIT = {
+  payee:   "Brandon Keim",
+  address: "718 W 14th Ave, Covington, LA 70433",
+  email:   "accounting@bkrewind.com",
+  zelle:   "504-650-8070",
+  paypal:  "accounting@bkrewind.com",
+} as const
+
 export const BUSINESS_PREFIXES: Record<string, string> = {
   "b-keim-rewind-marketing":    "RWND",
   "happily-ever-after-weddings": "HEAW",

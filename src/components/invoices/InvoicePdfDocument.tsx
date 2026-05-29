@@ -3,6 +3,7 @@ import { format, parseISO } from "date-fns"
 import { getEffectiveStatus, STATUS_LABELS, STATUS_COLORS } from "@/lib/invoiceStatus"
 import type { Invoice, InvoiceLineItem, Payment, InvoiceClient } from "@/lib/queries/invoices"
 import type { Business } from "@/lib/constants"
+import { INVOICE_REMIT } from "@/lib/constants"
 
 interface Props {
   invoice: Invoice
@@ -275,9 +276,7 @@ export default function InvoicePdfDocument({
             {userProfile.full_name && (
               <Text style={s.billingText}>{userProfile.full_name}</Text>
             )}
-            {userProfile.email && (
-              <Text style={s.billingText}>{userProfile.email}</Text>
-            )}
+            <Text style={s.billingText}>{INVOICE_REMIT.email}</Text>
             {userProfile.phone && (
               <Text style={s.billingText}>{userProfile.phone}</Text>
             )}
@@ -392,6 +391,16 @@ export default function InvoicePdfDocument({
             </View>
           </View>
         )}
+
+        {/* Payment Options */}
+        <View>
+          <Text style={s.sectionTitle}>Payment Options</Text>
+          <Text style={s.bodyText}>
+            Make checks payable to {INVOICE_REMIT.payee}, mail to: {INVOICE_REMIT.address}
+          </Text>
+          <Text style={s.bodyText}>Zelle: {INVOICE_REMIT.zelle}</Text>
+          <Text style={s.bodyText}>PayPal: {INVOICE_REMIT.paypal}</Text>
+        </View>
 
         {/* Notes */}
         {invoice.notes && (
