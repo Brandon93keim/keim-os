@@ -75,6 +75,7 @@ export function useDeleteTransaction() {
       INVALIDATE_KEYS.forEach((key) =>
         queryClient.invalidateQueries({ queryKey: [key] })
       )
+      queryClient.invalidateQueries({ queryKey: ["committed-outflows"] })
       toast.success("Transaction deleted")
     },
     onError: (err: Error) => {

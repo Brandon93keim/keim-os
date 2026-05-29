@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { format, parseISO } from "date-fns"
 import { useBills, useRecentBillPayments } from "@/lib/hooks/useBills"
 import { getBusinessById } from "@/lib/constants"
-import { formatCurrency } from "@/lib/finance/format"
+import { formatCurrency, getMonthBounds } from "@/lib/finance/format"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MarkPaidDialog } from "./MarkPaidDialog"
 import { BillFormSheet } from "./BillFormSheet"
@@ -15,16 +15,6 @@ import type { RecordBillPaymentContext } from "@/lib/queries/bills"
 
 function getToday(): string {
   return new Date().toISOString().split("T")[0]
-}
-
-function getMonthBounds(today: string): { monthStart: string; monthEnd: string } {
-  const yyyyMM = today.slice(0, 7)
-  const monthStart = yyyyMM + "-01"
-  const year = parseInt(yyyyMM.slice(0, 4))
-  const month = parseInt(yyyyMM.slice(5, 7))
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
-  const monthEnd = yyyyMM + "-" + String(daysInMonth).padStart(2, "0")
-  return { monthStart, monthEnd }
 }
 
 function get60DayCutoff(today: string): string {

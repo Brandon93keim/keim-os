@@ -10,6 +10,7 @@ import { formatCurrency } from "@/lib/finance/format"
 import { getBusinessById } from "@/lib/constants"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AccountFormSheet } from "./AccountFormSheet"
+import { CommittedOutflowsCard } from "./CommittedOutflowsCard"
 import type { AccountWithBalance } from "@/lib/finance/types"
 
 const TYPE_LABELS: Record<string, string> = {
@@ -152,16 +153,7 @@ export function AccountList() {
         </Link>
       </div>
 
-      {/* View all bills link */}
-      <div className="border-b border-border px-4 py-3">
-        <Link
-          href="/money/bills"
-          className="flex items-center justify-between text-sm font-medium text-primary hover:opacity-80 transition-opacity"
-        >
-          View all bills
-          <ArrowRight size={16} />
-        </Link>
-      </div>
+      <CommittedOutflowsCard />
 
       {/* Error state */}
       {error && (

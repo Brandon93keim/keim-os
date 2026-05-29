@@ -35,6 +35,21 @@ export async function listBills(): Promise<BillWithNextDue[]> {
   return (data ?? []) as unknown as BillWithNextDue[]
 }
 
+export async function listBillPaymentsForPeriod(periodStart: string, periodEnd: string): Promise<BillPayment[]> {
+  const supabase = createClient()
+  const userId = await getUserId()
+
+  const { data, error } = await supabase
+    .from("bill_payments")
+    .select("*")
+    .eq("user_id", userId)
+    .gte("period_start", periodStart)
+    .lte("period_start", periodEnd)
+
+  if (error) throw error
+  return (data ?? []) as unknown as BillPayment[]
+}
+
 export async function listRecentBillPayments(daysBack: number): Promise<BillPayment[]> {
   const supabase = createClient()
   const userId = await getUserId()
