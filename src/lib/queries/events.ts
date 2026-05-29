@@ -19,7 +19,7 @@ export type JobSnapshot = {
   title: string
   description: string | null
   total_estimate: number | null
-  status: "open" | "completed" | "cancelled"
+  status: "open" | "completed" | "cancelled" | "pro_bono"
 }
 
 // CalendarEvent is either a real DB row or a synthetic recurring instance.

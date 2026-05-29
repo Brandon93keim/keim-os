@@ -12,7 +12,7 @@ export type Job = {
   job_number: string
   title: string
   description: string | null
-  status: "open" | "completed" | "cancelled"
+  status: "open" | "completed" | "cancelled" | "pro_bono"
   total_estimate: number | null
   created_at: string
   updated_at: string

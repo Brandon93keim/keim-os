@@ -5,7 +5,7 @@ export const jobEditSchema = z.object({
   title: z.string().min(1, "Title required").max(200),
   description: z.string().max(2000).nullable(),
   total_estimate: z.number().nonnegative().nullable(),
-  status: z.enum(["open", "completed", "cancelled"]),
+  status: z.enum(["open", "completed", "cancelled", "pro_bono"]),
 })
 
 export type JobEditInput = z.input<typeof jobEditSchema>

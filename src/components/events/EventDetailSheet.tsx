@@ -34,6 +34,7 @@ import {
 } from "@/lib/hooks/useEvents"
 import { useClients } from "@/lib/hooks/useClients"
 import { useIsEventBilled } from "@/lib/hooks/useInvoices"
+import { useUpdateJob } from "@/lib/hooks/useJobs"
 import { configFromRRule, describeRecurrence } from "@/lib/recurrence"
 import { countSeriesOccurrences } from "@/lib/queries/events"
 import { RecurringEditDialog, type RecurringScope } from "./RecurringEditDialog"
@@ -66,11 +67,13 @@ function StatusBadge({ status }: { status: string }) {
     open: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
     completed: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
     cancelled: "bg-muted text-muted-foreground",
+    pro_bono: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
   }
   const labels: Record<string, string> = {
     open: "Open",
     completed: "Completed",
     cancelled: "Cancelled",
+    pro_bono: "Pro bono",
   }
   return (
     <span
@@ -86,12 +89,14 @@ export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice
   const [recurringDialogMode, setRecurringDialogMode] = useState<"edit" | "delete">("edit")
   const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
   const [editJobOpen, setEditJobOpen] = useState(false)
+  const [proBonoConfirmOpen, setProBonoConfirmOpen] = useState(false)
   const router = useRouter()
 
   const deleteEvent = useDeleteEvent()
   const deleteRecurringSingle = useDeleteRecurringSingle()
   const deleteRecurringFollowing = useDeleteRecurringFollowing()
   const deleteRecurringAll = useDeleteRecurringAll()
+  const updateJob = useUpdateJob()
   const { data: clients = [] } = useClients()
 
   const jobId = event?.job?.id ?? null
@@ -236,7 +241,18 @@ export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice
                   </div>
                 )}
 
-                <StatusBadge status={event.job.status} />
+                <div className="flex items-center justify-between">
+                  <StatusBadge status={event.job.status} />
+                  {event.job.status === "open" && (
+                    <button
+                      type="button"
+                      onClick={() => setProBonoConfirmOpen(true)}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Mark pro bono
+                    </button>
+                  )}
+                </div>
 
                 {otherEvents.length > 0 && (
                   <div className="pt-2 border-t border-border space-y-1">
@@ -469,6 +485,32 @@ export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice
         onClose={() => setEditJobOpen(false)}
         job={event.job ?? null}
       />
+
+      <AlertDialog open={proBonoConfirmOpen} onOpenChange={setProBonoConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark this job pro bono?</AlertDialogTitle>
+            <AlertDialogDescription>
+              It closes without an invoice; the estimate is kept as the comped value.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (event.job) {
+                  updateJob.mutate(
+                    { id: event.job.id, values: { status: "pro_bono" } },
+                    { onSuccess: () => setProBonoConfirmOpen(false) }
+                  )
+                }
+              }}
+            >
+              Mark pro bono
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
