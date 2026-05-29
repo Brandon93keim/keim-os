@@ -11,6 +11,7 @@ import { getBusinessById } from "@/lib/constants"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AccountFormSheet } from "./AccountFormSheet"
 import { CommittedOutflowsCard } from "./CommittedOutflowsCard"
+import { PnLPeekCard } from "./PnLPeekCard"
 import type { AccountWithBalance } from "@/lib/finance/types"
 
 const TYPE_LABELS: Record<string, string> = {
@@ -154,6 +155,7 @@ export function AccountList() {
       </div>
 
       <CommittedOutflowsCard />
+      <PnLPeekCard />
 
       {/* Error state */}
       {error && (
