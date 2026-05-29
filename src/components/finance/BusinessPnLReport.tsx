@@ -2,20 +2,27 @@
 
 import { useState } from "react"
 import { startOfMonth, startOfYear, subDays, subYears, addDays, format } from "date-fns"
+import { type DateRange } from "react-day-picker"
 import { cn } from "@/lib/utils"
 import { useBusinessPnL, type BusinessPnLRow } from "@/lib/hooks/useTransactions"
 import { formatCurrency } from "@/lib/finance/format"
 import { Skeleton } from "@/components/ui/skeleton"
+import { DateRangePicker } from "./DateRangePicker"
 
-type RangeKey = "MTD" | "YTD" | "Last 90" | "Last 12mo"
+type RangeKey = "MTD" | "YTD" | "90d" | "12mo" | "Custom"
 
-const CHIPS: RangeKey[] = ["MTD", "YTD", "Last 90", "Last 12mo"]
+const CHIPS: RangeKey[] = ["MTD", "YTD", "90d", "12mo", "Custom"]
 
 function toDateStr(d: Date) {
   return format(d, "yyyy-MM-dd")
 }
 
-function resolveRange(key: RangeKey): { dateFrom: string; dateTo: string } {
+function defaultCustomRange(): DateRange {
+  const today = new Date()
+  return { from: subDays(today, 29), to: today }
+}
+
+function resolveRange(key: RangeKey, customRange?: DateRange): { dateFrom: string; dateTo: string } {
   const today = new Date()
   const dateTo = toDateStr(today)
   switch (key) {
@@ -23,10 +30,17 @@ function resolveRange(key: RangeKey): { dateFrom: string; dateTo: string } {
       return { dateFrom: toDateStr(startOfMonth(today)), dateTo }
     case "YTD":
       return { dateFrom: toDateStr(startOfYear(today)), dateTo }
-    case "Last 90":
+    case "90d":
       return { dateFrom: toDateStr(subDays(today, 89)), dateTo }
-    case "Last 12mo":
+    case "12mo":
       return { dateFrom: toDateStr(addDays(subYears(today, 1), 1)), dateTo }
+    case "Custom": {
+      const r = customRange ?? defaultCustomRange()
+      return {
+        dateFrom: toDateStr(r.from ?? subDays(today, 29)),
+        dateTo: toDateStr(r.to ?? today),
+      }
+    }
   }
 }
 
@@ -70,7 +84,7 @@ function RowSkeleton() {
 
 function ChipRow({ selected, onSelect }: { selected: RangeKey; onSelect: (k: RangeKey) => void }) {
   return (
-    <div className="px-4 py-3 flex gap-2 border-b border-border">
+    <div className="px-4 py-3 flex gap-2">
       <div className="flex rounded-lg border border-border overflow-hidden flex-1">
         {CHIPS.map((chip) => (
           <button
@@ -148,9 +162,20 @@ function PnLRow({ row }: { row: BusinessPnLRow }) {
 
 export function BusinessPnLReport() {
   const [range, setRange] = useState<RangeKey>("YTD")
-  const { dateFrom, dateTo } = resolveRange(range)
+  const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
+  const { dateFrom, dateTo } = resolveRange(range, customRange)
 
   const { data, isLoading, error } = useBusinessPnL(dateFrom, dateTo)
+
+  function handleRangeSelect(k: RangeKey) {
+    setRange(k)
+  }
+
+  function handleCustomSelect(r: DateRange | undefined) {
+    setCustomRange(r)
+  }
+
+  const pickerValue = range === "Custom" ? (customRange ?? defaultCustomRange()) : undefined
 
   return (
     <div className="flex flex-col min-h-full">
@@ -159,8 +184,18 @@ export function BusinessPnLReport() {
         <h1 className="text-xl font-semibold">Reports</h1>
       </div>
 
-      {/* Chip row */}
-      <ChipRow selected={range} onSelect={setRange} />
+      {/* Chip row + inline date picker */}
+      <div className="border-b border-border">
+        <ChipRow selected={range} onSelect={handleRangeSelect} />
+        {range === "Custom" && (
+          <div className="pb-3">
+            <DateRangePicker
+              selected={pickerValue}
+              onSelect={handleCustomSelect}
+            />
+          </div>
+        )}
+      </div>
 
       {/* Summary band */}
       {isLoading ? (
