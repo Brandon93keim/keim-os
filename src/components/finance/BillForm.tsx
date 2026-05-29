@@ -84,7 +84,6 @@ export function BillForm({ bill, onSuccess, onCancel }: Props) {
           frequency_unit: bill.frequency_unit,
           frequency_interval: bill.frequency_interval,
           anchor_date: bill.anchor_date,
-          end_date: bill.end_date,
           is_active: bill.is_active,
           notes: bill.notes,
         }
@@ -99,7 +98,6 @@ export function BillForm({ bill, onSuccess, onCancel }: Props) {
           frequency_unit: "month",
           frequency_interval: 1,
           anchor_date: todayStr(),
-          end_date: null,
           is_active: true,
           notes: null,
         },
@@ -419,26 +417,6 @@ export function BillForm({ bill, onSuccess, onCancel }: Props) {
                   <FormDescription>
                     First occurrence — future periods are calculated from this date.
                   </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Ends (end_date) */}
-            <FormField
-              control={form.control}
-              name="end_date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Ends</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="date"
-                      value={field.value ?? ""}
-                      onChange={(e) => field.onChange(e.target.value || null)}
-                    />
-                  </FormControl>
-                  <FormDescription>Leave empty for ongoing bills.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

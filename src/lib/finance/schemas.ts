@@ -86,7 +86,6 @@ export const billFormSchema = z
     frequency_unit: z.enum(["week", "month", "year"]),
     frequency_interval: z.number().int().positive("Interval must be greater than 0"),
     anchor_date: z.string().min(1, "Anchor date is required"),
-    end_date: z.string().nullable(),
     is_active: z.boolean(),
     notes: z.string().max(500, "Notes must be 500 characters or fewer").nullable(),
   })
@@ -113,13 +112,6 @@ export const billFormSchema = z
           path: ["pays_down_account_id"],
         })
       }
-    }
-    if (data.end_date && data.anchor_date && data.end_date < data.anchor_date) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "End date must be on or after anchor date",
-        path: ["end_date"],
-      })
     }
   })
 

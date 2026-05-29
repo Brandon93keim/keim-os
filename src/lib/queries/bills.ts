@@ -86,7 +86,7 @@ export async function createBill(values: BillFormValues): Promise<void> {
     frequency_unit: values.frequency_unit,
     frequency_interval: values.frequency_interval,
     anchor_date: values.anchor_date,
-    end_date: values.end_date,
+    end_date: null,
     is_active: values.is_active,
     notes: values.notes,
   })
@@ -109,7 +109,7 @@ export async function updateBill(id: string, values: BillFormValues): Promise<vo
       frequency_unit: values.frequency_unit,
       frequency_interval: values.frequency_interval,
       anchor_date: values.anchor_date,
-      end_date: values.end_date,
+      end_date: null,
       is_active: values.is_active,
       notes: values.notes,
     })
