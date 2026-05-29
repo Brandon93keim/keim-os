@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { format } from "date-fns"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { cn } from "@/lib/utils"
@@ -40,7 +41,7 @@ import {
 } from "@/components/ui/alert-dialog"
 
 function todayStr(): string {
-  return new Date().toISOString().split("T")[0]
+  return format(new Date(), "yyyy-MM-dd")
 }
 
 interface Props {

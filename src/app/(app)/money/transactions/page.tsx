@@ -25,7 +25,7 @@ function formatGroupDate(dateStr: string): string {
 function last30DaysSummary(transactions: TransactionWithRelations[]) {
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - 30)
-  const cutoffStr = cutoff.toISOString().split("T")[0]
+  const cutoffStr = format(cutoff, "yyyy-MM-dd")
 
   let income = 0
   let expenses = 0

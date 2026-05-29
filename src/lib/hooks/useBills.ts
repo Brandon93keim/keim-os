@@ -14,6 +14,7 @@ import {
 } from "@/lib/queries/bills"
 import type { RecordBillPaymentContext } from "@/lib/queries/bills"
 import type { BillFormValues, BillPaymentFormValues } from "@/lib/finance/schemas"
+import { format } from "date-fns"
 import { getMonthBounds } from "@/lib/finance/format"
 
 export function useBills() {
@@ -43,7 +44,7 @@ export type CommittedOutflowsResult = {
 }
 
 export function useCommittedOutflowsThisMonth() {
-  const today = new Date().toISOString().split("T")[0]
+  const today = format(new Date(), "yyyy-MM-dd")
   const yyyyMM = today.slice(0, 7)
   const { monthStart, monthEnd } = getMonthBounds(today)
 

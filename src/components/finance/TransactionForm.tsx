@@ -8,6 +8,7 @@ import { transactionFormSchema, type TransactionFormValues } from "@/lib/finance
 import { useCreateTransaction, useUpdateTransaction, useDeleteTransaction } from "@/lib/hooks/useTransactions"
 import { useAllAccounts } from "@/lib/hooks/useAccounts"
 import { BUSINESSES } from "@/lib/constants"
+import { format } from "date-fns"
 import type { TransactionWithRelations } from "@/lib/finance/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -40,7 +41,7 @@ const ACCOUNT_LABEL: Record<string, string> = {
 }
 
 function todayISO() {
-  return new Date().toISOString().split("T")[0]
+  return format(new Date(), "yyyy-MM-dd")
 }
 
 interface Props {

@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react"
 import { ArrowLeft, Pencil, Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { format, parseISO } from "date-fns"
+import { format, parseISO, addDays } from "date-fns"
 import { useBills, useRecentBillPayments } from "@/lib/hooks/useBills"
 import { getBusinessById } from "@/lib/constants"
 import { formatCurrency, getMonthBounds } from "@/lib/finance/format"
@@ -14,13 +14,11 @@ import type { BillWithNextDue } from "@/lib/finance/types"
 import type { RecordBillPaymentContext } from "@/lib/queries/bills"
 
 function getToday(): string {
-  return new Date().toISOString().split("T")[0]
+  return format(new Date(), "yyyy-MM-dd")
 }
 
 function get60DayCutoff(today: string): string {
-  const d = new Date(today + "T00:00:00Z")
-  d.setUTCDate(d.getUTCDate() + 60)
-  return d.toISOString().split("T")[0]
+  return format(addDays(parseISO(today), 60), "yyyy-MM-dd")
 }
 
 function billToCtx(bill: BillWithNextDue): RecordBillPaymentContext {

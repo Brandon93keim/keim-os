@@ -1,3 +1,4 @@
+import { format } from "date-fns"
 import { createClient } from "@/lib/supabase/client"
 import type { BillWithNextDue, BillPayment } from "@/lib/finance/types"
 import type { BillFormValues, BillPaymentFormValues } from "@/lib/finance/schemas"
@@ -56,7 +57,7 @@ export async function listRecentBillPayments(daysBack: number): Promise<BillPaym
 
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - daysBack)
-  const cutoffStr = cutoff.toISOString().split("T")[0]
+  const cutoffStr = format(cutoff, "yyyy-MM-dd")
 
   const { data, error } = await supabase
     .from("bill_payments")

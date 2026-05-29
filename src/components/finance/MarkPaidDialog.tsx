@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
+import { format } from "date-fns"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { billPaymentFormSchema, type BillPaymentFormValues } from "@/lib/finance/schemas"
@@ -39,7 +40,7 @@ interface Props {
 }
 
 function todayStr(): string {
-  return new Date().toISOString().split("T")[0]
+  return format(new Date(), "yyyy-MM-dd")
 }
 
 export function MarkPaidDialog({ open, onClose, ctx }: Props) {
