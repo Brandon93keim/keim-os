@@ -19,6 +19,7 @@ import {
 import { InvoiceCard } from "./InvoiceCard"
 import { InvoiceFormSheet } from "./InvoiceFormSheet"
 import { UnbilledJobsList } from "./UnbilledJobsList"
+import { CompedJobsList } from "./CompedJobsList"
 import type { InvoiceSummary } from "@/lib/queries/invoices"
 import type { UnbilledJob } from "@/lib/queries/jobs"
 
@@ -210,7 +211,10 @@ export function InvoiceList() {
       {/* Body */}
       <div className="py-3">
         {isUnbilledTab ? (
-          <UnbilledJobsList onCreateInvoice={handleCreateInvoiceFromJob} />
+          <>
+            <UnbilledJobsList onCreateInvoice={handleCreateInvoiceFromJob} />
+            <CompedJobsList />
+          </>
         ) : (
           <>
             {isLoading && <ListSkeleton />}

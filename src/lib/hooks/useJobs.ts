@@ -55,6 +55,7 @@ export function useUpdateJob() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["jobs"] })
       queryClient.invalidateQueries({ queryKey: ["unbilled-jobs"] })
+      queryClient.invalidateQueries({ queryKey: ["pro-bono-jobs-ytd"] })
       queryClient.invalidateQueries({ queryKey: ["is-job-billed"] })
       queryClient.invalidateQueries({ queryKey: ["events"] })
       toast.success("Job saved")

@@ -243,6 +243,56 @@ export async function getUnbilledJobs(): Promise<UnbilledJob[]> {
   return result
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Pro bono jobs (YTD)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProBonoJob = {
+  job_id: string
+  job_number: string
+  job_title: string
+  business_id: string
+  client_name: string | null
+  client_company: string | null
+  total_estimate: number | null
+}
+
+type RawProBonoRecord = {
+  id: string
+  business_id: string
+  job_number: string
+  title: string
+  total_estimate: number | null
+  client: { name: string; company: string | null } | null
+}
+
+export async function getProBonoJobsYTD(): Promise<ProBonoJob[]> {
+  const supabase = createClient()
+  const userId = await getUserId()
+  const now = new Date()
+  const yearStart = new Date(now.getFullYear(), 0, 1).toISOString()
+
+  const { data, error } = await supabase
+    .from("jobs")
+    .select("id, business_id, job_number, title, total_estimate, client:clients(name, company)")
+    .eq("user_id", userId)
+    .eq("status", "pro_bono")
+    .gte("updated_at", yearStart)
+    .order("updated_at", { ascending: false })
+
+  if (error) throw error
+
+  return ((data ?? []) as unknown as RawProBonoRecord[]).map((job) => ({
+    job_id: job.id,
+    job_number: job.job_number,
+    job_title: job.title,
+    business_id: job.business_id,
+    client_name: job.client?.name ?? null,
+    client_company: job.client?.company ?? null,
+    total_estimate: job.total_estimate,
+  }))
+}
+
 export async function isEventBilled(eventId: string): Promise<boolean> {
   const supabase = createClient()
   const { data: items, error: itemsErr } = await supabase

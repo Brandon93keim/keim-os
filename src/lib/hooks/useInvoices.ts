@@ -15,7 +15,7 @@ import {
   deletePayment as deletePaymentQuery,
   listJobsForClientAndBusiness,
 } from "@/lib/queries/invoices"
-import { getUnbilledJobs, isEventBilled } from "@/lib/queries/jobs"
+import { getUnbilledJobs, isEventBilled, getProBonoJobsYTD } from "@/lib/queries/jobs"
 import type { InvoiceFormValues, PaymentFormValues } from "@/lib/validations/invoice"
 import type { RecordPaymentContext } from "@/lib/queries/invoices"
 
@@ -46,6 +46,14 @@ export function useUnbilledJobs() {
   return useQuery({
     queryKey: ["unbilled-jobs"],
     queryFn: getUnbilledJobs,
+    staleTime: 30_000,
+  })
+}
+
+export function useProBonoJobsYTD() {
+  return useQuery({
+    queryKey: ["pro-bono-jobs-ytd"],
+    queryFn: getProBonoJobsYTD,
     staleTime: 30_000,
   })
 }
