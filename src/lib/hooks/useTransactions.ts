@@ -6,6 +6,7 @@ import {
   listTransactions,
   listAccountTransactions,
   listPnLTransactions,
+  listDrillDownTransactions,
   createTransaction,
   updateTransaction as updateTransactionQuery,
   deleteTransaction as deleteTransactionQuery,
@@ -65,6 +66,18 @@ export function useBusinessPnL(dateFrom: string, dateTo: string) {
 
       return { dateFrom, dateTo, rows, totals }
     },
+  })
+}
+
+export function useDrillDownTransactions(
+  businessParam: string | null,
+  dateFrom: string,
+  dateTo: string
+) {
+  return useQuery({
+    queryKey: ["transactions", "drill-down", businessParam, dateFrom, dateTo],
+    queryFn: () => listDrillDownTransactions(businessParam!, dateFrom, dateTo),
+    enabled: !!businessParam && !!dateFrom && !!dateTo,
   })
 }
 

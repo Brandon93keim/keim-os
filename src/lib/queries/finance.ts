@@ -187,6 +187,44 @@ export async function listPnLTransactions(
   return (data ?? []) as unknown as TransactionWithRelations[]
 }
 
+// "personal" → business_id IS NULL; any other string → business_id = that UUID.
+// Only returns income/expense (no transfers) so the summary reconciles with P&L rows.
+export async function listDrillDownTransactions(
+  businessParam: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<TransactionWithRelations[]> {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  let query = supabase
+    .from("transactions")
+    .select(`
+      *,
+      account:accounts!account_id(id, name, kind),
+      transfer_to_account:accounts!transfer_to_account_id(id, name)
+    `)
+    .eq("user_id", user.id)
+    .in("type", ["income", "expense"])
+    .gte("occurred_on", dateFrom)
+    .lte("occurred_on", dateTo)
+    .order("occurred_on", { ascending: false })
+    .order("created_at", { ascending: false })
+
+  if (businessParam === "personal") {
+    query = query.is("business_id", null)
+  } else {
+    query = query.eq("business_id", businessParam)
+  }
+
+  const { data, error } = await query
+  if (error) throw error
+  return (data ?? []) as unknown as TransactionWithRelations[]
+}
+
 export async function listAccountTransactions(
   accountId: string
 ): Promise<TransactionWithRelations[]> {

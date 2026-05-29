@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { startOfMonth, startOfYear, subDays, subYears, addDays, format } from "date-fns"
 import { type DateRange } from "react-day-picker"
 import { cn } from "@/lib/utils"
@@ -132,9 +133,14 @@ function SummaryBand({ income, expense, net, label }: { income: number; expense:
   )
 }
 
-function PnLRow({ row }: { row: BusinessPnLRow }) {
+function PnLRow({ row, dateFrom, dateTo }: { row: BusinessPnLRow; dateFrom: string; dateTo: string }) {
+  const bizParam = row.businessId ?? "personal"
+  const href = `/money/transactions?business=${bizParam}&from=${dateFrom}&to=${dateTo}`
   return (
-    <div className="flex items-center gap-3 px-4 py-3.5">
+    <Link
+      href={href}
+      className="flex items-center gap-3 px-4 py-3.5 transition-colors active:bg-muted/60 hover:bg-muted/40"
+    >
       <span
         className="h-2.5 w-2.5 shrink-0 rounded-full"
         style={{ backgroundColor: row.color }}
@@ -156,7 +162,7 @@ function PnLRow({ row }: { row: BusinessPnLRow }) {
           </p>
         </div>
       </div>
-    </div>
+    </Link>
   )
 }
 
@@ -218,7 +224,7 @@ export function BusinessPnLReport() {
             [...Array(9)].map((_, i) => <RowSkeleton key={i} />)
           ) : (
             data?.rows.map((row) => (
-              <PnLRow key={row.businessId ?? "__personal__"} row={row} />
+              <PnLRow key={row.businessId ?? "__personal__"} row={row} dateFrom={dateFrom} dateTo={dateTo} />
             ))
           )}
         </div>

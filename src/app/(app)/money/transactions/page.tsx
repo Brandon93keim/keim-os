@@ -1,11 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, ArrowLeft } from "lucide-react"
+import { Plus, ArrowLeft, X } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { format, isToday, isYesterday, parseISO, isSameYear } from "date-fns"
 import { cn } from "@/lib/utils"
-import { useTransactions } from "@/lib/hooks/useTransactions"
+import { useTransactions, useDrillDownTransactions } from "@/lib/hooks/useTransactions"
 import { formatCurrency } from "@/lib/finance/format"
 import { getBusinessById } from "@/lib/constants"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -33,6 +35,24 @@ function last30DaysSummary(transactions: TransactionWithRelations[]) {
     else if (t.type === "expense") expenses += Number(t.amount)
   }
   return { income, expenses, net: income - expenses }
+}
+
+function drillSummary(transactions: TransactionWithRelations[]) {
+  let income = 0
+  let expenses = 0
+  for (const t of transactions) {
+    if (t.type === "income") income += Number(t.amount)
+    else if (t.type === "expense") expenses += Number(t.amount)
+  }
+  return { income, expenses, net: income - expenses }
+}
+
+function formatDateRange(from: string, to: string): string {
+  const f = parseISO(from)
+  const t = parseISO(to)
+  const bothThisYear = isSameYear(f, new Date()) && isSameYear(t, new Date())
+  const fmt = bothThisYear ? "MMM d" : "MMM d, yyyy"
+  return `${format(f, fmt)} – ${format(t, fmt)}`
 }
 
 function groupByDate(
@@ -67,7 +87,6 @@ function TransactionRow({
       onClick={() => onTap(transaction)}
       className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-muted/60 hover:bg-muted/40"
     >
-      {/* Left: description + account */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
           {business && (
@@ -83,7 +102,6 @@ function TransactionRow({
         </p>
       </div>
 
-      {/* Right: amount */}
       <div className="text-right shrink-0">
         {transaction.type === "income" && (
           <p className="text-sm font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
@@ -126,7 +144,20 @@ function RowSkeleton() {
 
 export default function TransactionsPage() {
   const router = useRouter()
-  const { data: transactions = [], isLoading, error } = useTransactions()
+  const searchParams = useSearchParams()
+
+  const bizParam = searchParams.get("business")
+  const fromParam = searchParams.get("from")
+  const toParam = searchParams.get("to")
+  const isDrillDown = !!(bizParam && fromParam && toParam)
+
+  const { data: allTransactions = [], isLoading: allLoading, error: allError } = useTransactions()
+  const {
+    data: drillTransactions = [],
+    isLoading: drillLoading,
+    error: drillError,
+  } = useDrillDownTransactions(bizParam, fromParam ?? "", toParam ?? "")
+
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<TransactionWithRelations | undefined>(undefined)
 
@@ -145,8 +176,18 @@ export default function TransactionsPage() {
     setEditTarget(undefined)
   }
 
-  const summary = last30DaysSummary(transactions)
+  const transactions = isDrillDown ? drillTransactions : allTransactions
+  const isLoading = isDrillDown ? drillLoading : allLoading
+  const error = isDrillDown ? drillError : allError
+
+  const summary = isDrillDown ? drillSummary(drillTransactions) : last30DaysSummary(allTransactions)
   const groups = groupByDate(transactions)
+
+  const drillBusinessName = isDrillDown
+    ? bizParam === "personal"
+      ? "Personal"
+      : (getBusinessById(bizParam!)?.name ?? bizParam!)
+    : null
 
   return (
     <div className="flex flex-col min-h-full">
@@ -160,13 +201,24 @@ export default function TransactionsPage() {
         >
           <ArrowLeft size={18} />
         </button>
-        <h1 className="text-xl font-semibold">Transactions</h1>
+        <h1 className="text-xl font-semibold flex-1 min-w-0 truncate">
+          {isDrillDown ? drillBusinessName : "Transactions"}
+        </h1>
+        {isDrillDown && (
+          <Link
+            href="/money/transactions"
+            className="flex items-center justify-center h-8 w-8 rounded-full hover:bg-muted transition-colors"
+            aria-label="Clear filter"
+          >
+            <X size={16} />
+          </Link>
+        )}
       </div>
 
-      {/* Summary band — last 30 days */}
+      {/* Summary band */}
       <div className="bg-muted/40 border-b border-border px-4 py-4">
         <p className="text-xs text-muted-foreground uppercase tracking-wider text-center mb-3">
-          Last 30 days
+          {isDrillDown ? formatDateRange(fromParam!, toParam!) : "Last 30 days"}
         </p>
         <div className="flex justify-around">
           <div className="text-center">
@@ -220,8 +272,10 @@ export default function TransactionsPage() {
           </div>
         ) : transactions.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 px-4 pt-20 text-center">
-            <p className="text-base font-medium text-muted-foreground">No transactions yet.</p>
-            <p className="text-sm text-muted-foreground">Tap + to add one.</p>
+            <p className="text-base font-medium text-muted-foreground">
+              {isDrillDown ? "No transactions in this range." : "No transactions yet."}
+            </p>
+            {!isDrillDown && <p className="text-sm text-muted-foreground">Tap + to add one.</p>}
           </div>
         ) : (
           groups.map((group) => (
