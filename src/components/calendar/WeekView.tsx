@@ -2,17 +2,19 @@
 
 import { useRef } from "react"
 import { format, isToday, isSameDay } from "date-fns"
-import { Bell, Repeat } from "lucide-react"
+import { Repeat } from "lucide-react"
 import { getWeekDays, HOURS_IN_VIEW } from "@/lib/date"
 import { BUSINESSES, colorForEvent, shortJobNumber } from "@/lib/constants"
 import { cn } from "@/lib/utils"
-import { useClients } from "@/lib/hooks/useClients"
 import { layoutEventsForDay, topForTime, heightForEvent, HOUR_HEIGHT } from "./eventLayout"
+import { TaskMarker } from "./TaskMarker"
 import type { CalEvent } from "@/lib/hooks/useEvents"
+import type { TaskWithRelations } from "@/lib/hooks/useTasks"
 
 interface Props {
   anchorDate: Date
   events: CalEvent[]
+  tasks: TaskWithRelations[]
   onEventTap: (event: CalEvent) => void
   onPrev: () => void
   onNext: () => void
@@ -36,21 +38,20 @@ function eventColor(event: CalEvent): { bg: string; border: string; text: string
   return { bg: base + "d9", border: base, text: "#fff" }
 }
 
-function reminderColors(event: CalEvent): { bg: string; border: string; text: string } {
-  const base = colorForEvent(event)
-  return { bg: base + "26", border: base, text: base + "e6" }
-}
-
-export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Props) {
+export function WeekView({ anchorDate, events, tasks, onEventTap, onPrev, onNext }: Props) {
   const days = getWeekDays(anchorDate)
   const touchStartX = useRef<number | null>(null)
   const touchStartY = useRef<number | null>(null)
   const isVerticalScroll = useRef(false)
   const totalHeight = HOURS_IN_VIEW.length * HOUR_HEIGHT
-  const { data: clients = [] } = useClients()
+  const today = format(new Date(), "yyyy-MM-dd")
 
   const allDayEvents = events.filter((e) => e.all_day)
   const hasAllDayEvents = allDayEvents.length > 0
+  const hasWeekTasks = days.some((d) =>
+    tasks.some((t) => t.due_on === format(d, "yyyy-MM-dd") && t.status !== "done")
+  )
+  const showAllDayRow = hasAllDayEvents || hasWeekTasks
   const timedNonReminderEvents = events.filter((e) => e.type !== "reminder" && !e.all_day)
 
   function handleTouchStart(e: React.TouchEvent) {
@@ -114,8 +115,8 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
         ))}
       </div>
 
-      {/* All-day events row — shown only when there are all-day events in the week */}
-      {hasAllDayEvents && (
+      {/* All-day row — shown when there are all-day events or tasks due this week */}
+      {showAllDayRow && (
         <div className="flex shrink-0 border-b border-border" style={{ minHeight: 32 }}>
           <div className="w-10 shrink-0" />
           {days.map((day) => {
@@ -126,19 +127,19 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
               const end = new Date(e.end_time)
               return start <= wDayEnd && end >= wDayStart
             })
+            const dayStr = format(day, "yyyy-MM-dd")
+            const dayTasks = tasks.filter((t) => t.due_on === dayStr && t.status !== "done")
             return (
               <div
                 key={day.toISOString()}
-                className="flex-1 border-l border-border flex items-center gap-0.5 px-0.5 py-1 overflow-hidden min-w-0"
+                className="flex-1 border-l border-border flex flex-wrap items-center gap-0.5 px-0.5 py-1 overflow-hidden min-w-0"
               >
                 {dayAllDay.map((event) => {
                   const base = colorForEvent(event)
                   const colors = { bg: base + "26", border: base, text: base + "e6" }
-                  const isReminder = event.type === "reminder"
-                  const linked = isReminder ? clients.find((c) => c.id === event.reminder_for_client_id) : null
                   const label = event.job_number
                     ? `${shortJobNumber(event.job_number)} · ${event.title}`
-                    : linked ? `${event.title} · ${linked.name}` : event.title
+                    : event.title
                   return (
                     <button
                       key={event.id}
@@ -151,11 +152,13 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
                         color: colors.text,
                       }}
                     >
-                      {isReminder && <Bell size={8} className="shrink-0" />}
                       <span className="truncate max-w-[60px]">{label}</span>
                     </button>
                   )
                 })}
+                {dayTasks.map((task) => (
+                  <TaskMarker key={task.id} task={task} today={today} compact />
+                ))}
               </div>
             )
           })}
@@ -181,14 +184,6 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
           {/* Day columns */}
           {days.map((day) => {
             const layoutEvents = layoutEventsForDay(timedNonReminderEvents, day)
-            const colDayStart = new Date(day); colDayStart.setHours(0, 0, 0, 0)
-            const colDayEnd = new Date(day); colDayEnd.setHours(23, 59, 59, 999)
-            const dayTimedReminders = events.filter((e) => {
-              if (e.type !== "reminder" || e.all_day) return false
-              const start = new Date(e.start_time)
-              const end = new Date(e.end_time)
-              return start <= colDayEnd && end >= colDayStart
-            })
 
             return (
               <div key={day.toISOString()} className="flex-1 relative border-l border-border">
@@ -209,7 +204,6 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
                 {/* Regular events */}
                 {layoutEvents.map((event) => {
                   const start = new Date(event.start_time)
-                  const end = new Date(event.end_time)
                   const gridStart = new Date(day)
                   gridStart.setHours(HOURS_IN_VIEW[0], 0, 0, 0)
                   const renderStart = event.effectiveStart.getTime() < gridStart.getTime()
@@ -260,34 +254,6 @@ export function WeekView({ anchorDate, events, onEventTap, onPrev, onNext }: Pro
                       {continuesAfter && (
                         <div className="absolute bottom-0 inset-x-0 flex items-center justify-center h-2.5 text-[6px] opacity-70" style={{ backgroundColor: colors.bg }}>↓</div>
                       )}
-                    </button>
-                  )
-                })}
-
-                {/* Timed reminders — 22px pill anchored to start time */}
-                {dayTimedReminders.map((event) => {
-                  const start = new Date(event.start_time)
-                  const top = topForTime(start)
-                  const colors = reminderColors(event)
-                  const linked = clients.find((c) => c.id === event.reminder_for_client_id)
-                  const label = linked ? `${event.title} · ${linked.name}` : event.title
-
-                  return (
-                    <button
-                      key={event.id}
-                      type="button"
-                      onClick={() => onEventTap(event)}
-                      className="absolute left-0 right-0 flex items-center gap-0.5 rounded-full px-1 text-[9px] font-medium overflow-hidden z-10 active:opacity-70"
-                      style={{
-                        top,
-                        height: 22,
-                        border: `1px solid ${colors.border}`,
-                        backgroundColor: colors.bg,
-                        color: colors.text,
-                      }}
-                    >
-                      <Bell size={8} className="shrink-0" />
-                      <span className="truncate">{label}</span>
                     </button>
                   )
                 })}

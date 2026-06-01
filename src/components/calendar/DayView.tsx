@@ -8,7 +8,9 @@ import { roundToNearest15 } from "@/lib/date"
 import { cn } from "@/lib/utils"
 import { useClients } from "@/lib/hooks/useClients"
 import { layoutEventsForDay, topForTime, heightForEvent, HOUR_HEIGHT, GRID_START_HOUR } from "./eventLayout"
+import { TaskMarker } from "./TaskMarker"
 import type { CalEvent } from "@/lib/hooks/useEvents"
+import type { TaskWithRelations } from "@/lib/hooks/useTasks"
 
 const ALL_HOURS = Array.from({ length: 24 }, (_, i) => i)
 const DEFAULT_HOURS = Array.from({ length: 17 }, (_, i) => i + 6)
@@ -16,6 +18,7 @@ const DEFAULT_HOURS = Array.from({ length: 17 }, (_, i) => i + 6)
 interface Props {
   anchorDate: Date
   events: CalEvent[]
+  tasks: TaskWithRelations[]
   onEventTap: (event: CalEvent) => void
   onSlotTap: (slotTime: Date) => void
   onPrev: () => void
@@ -40,12 +43,7 @@ function eventColor(event: CalEvent): { bg: string; border: string; text: string
   return { bg: base + "d9", border: base, text: "#fff" }
 }
 
-function reminderColors(event: CalEvent): { bg: string; border: string; text: string } {
-  const base = colorForEvent(event)
-  return { bg: base + "26", border: base, text: base + "e6" }
-}
-
-export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onNext }: Props) {
+export function DayView({ anchorDate, events, tasks, onEventTap, onSlotTap, onPrev, onNext }: Props) {
   const [showEarlier, setShowEarlier] = useState(false)
   const [showLater, setShowLater] = useState(false)
   const [nowTop, setNowTop] = useState<number | null>(null)
@@ -54,6 +52,7 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
   const isVerticalScroll = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const { data: clients = [] } = useClients()
+  const today = format(new Date(), "yyyy-MM-dd")
 
   const hours = (() => {
     if (showEarlier && showLater) return ALL_HOURS
@@ -68,15 +67,8 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
   const dayStart = new Date(anchorDate); dayStart.setHours(0, 0, 0, 0)
   const dayEnd = new Date(anchorDate); dayEnd.setHours(23, 59, 59, 999)
 
-  // Split events: all-day events get a dedicated row; timed reminders get pill rendering
   const allDayEvents = events.filter((e) => {
     if (!e.all_day) return false
-    const start = new Date(e.start_time)
-    const end = new Date(e.end_time)
-    return start <= dayEnd && end >= dayStart
-  })
-  const timedReminders = events.filter((e) => {
-    if (e.type !== "reminder" || e.all_day) return false
     const start = new Date(e.start_time)
     const end = new Date(e.end_time)
     return start <= dayEnd && end >= dayStart
@@ -85,6 +77,9 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
     (e) => e.type !== "reminder" && !e.all_day
   )
   const layoutEvents = layoutEventsForDay(timedNonReminderEvents, anchorDate)
+
+  const dayStr = format(anchorDate, "yyyy-MM-dd")
+  const dayTasks = tasks.filter((t) => t.due_on === dayStr && t.status !== "done")
 
   function computeNowTop(): number | null {
     if (!isToday(anchorDate)) return null
@@ -166,8 +161,8 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
         </button>
       )}
 
-      {/* All-day events row */}
-      {allDayEvents.length > 0 && (
+      {/* All-day events + tasks row */}
+      {(allDayEvents.length > 0 || dayTasks.length > 0) && (
         <div
           className="shrink-0 flex items-center gap-1.5 px-2 border-b border-border overflow-x-auto"
           style={{ height: 32 }}
@@ -198,6 +193,9 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
               </button>
             )
           })}
+          {dayTasks.map((task) => (
+            <TaskMarker key={task.id} task={task} today={today} />
+          ))}
         </div>
       )}
 
@@ -299,36 +297,6 @@ export function DayView({ anchorDate, events, onEventTap, onSlotTap, onPrev, onN
                 {continuesAfter && (
                   <div className="absolute bottom-0 inset-x-0 flex items-center justify-center h-3 text-[7px] opacity-70" style={{ backgroundColor: colors.bg }}>↓</div>
                 )}
-              </button>
-            )
-          })}
-
-          {/* Timed reminders — fixed 24px pill anchored to start time */}
-          {timedReminders.map((event) => {
-            const start = new Date(event.start_time)
-            const top = topForTime(start) - (startHour - GRID_START_HOUR) * HOUR_HEIGHT
-            const colors = reminderColors(event)
-            const linked = clients.find((c) => c.id === event.reminder_for_client_id)
-            const label = linked ? `${event.title} · ${linked.name}` : event.title
-
-            return (
-              <button
-                key={event.id}
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onEventTap(event) }}
-                className="absolute flex items-center gap-1 rounded-full px-2 text-[10px] font-medium overflow-hidden z-10 active:opacity-70"
-                style={{
-                  top,
-                  height: 24,
-                  left: "calc(2.5rem + 2px)",
-                  right: "4px",
-                  border: `1px solid ${colors.border}`,
-                  backgroundColor: colors.bg,
-                  color: colors.text,
-                }}
-              >
-                <Bell size={10} className="shrink-0" />
-                <span className="truncate">{label}</span>
               </button>
             )
           })}

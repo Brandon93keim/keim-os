@@ -189,6 +189,7 @@ export function Calendar() {
           <WeekView
             anchorDate={anchorDate}
             events={events}
+            tasks={tasks}
             onEventTap={handleEventTap}
             onPrev={goPrev}
             onNext={goNext}
@@ -198,6 +199,7 @@ export function Calendar() {
           <DayView
             anchorDate={anchorDate}
             events={events}
+            tasks={tasks}
             onEventTap={handleEventTap}
             onSlotTap={(slotTime) => openNewEvent({ start_time: slotTime, end_time: addHours(slotTime, 1) })}
             onPrev={goPrev}
