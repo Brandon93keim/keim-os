@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { BUSINESS_IDS } from "./client"
 
-export const eventTypeSchema = z.enum(["meeting", "job", "personal", "reminder", "golf"])
+export const eventTypeSchema = z.enum(["meeting", "job", "personal", "golf"])
 export const meetingPurposeSchema = z.enum([
   "prospect_meeting",
   "existing_client",

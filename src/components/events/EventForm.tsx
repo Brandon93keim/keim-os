@@ -72,7 +72,6 @@ const EVENT_TYPES = [
   { value: "job", label: "Job" },
   { value: "meeting", label: "Meeting" },
   { value: "personal", label: "Personal" },
-  { value: "reminder", label: "Reminder" },
   { value: "golf", label: "Golf" },
 ] as const
 
@@ -252,9 +251,9 @@ export function EventForm({
     form.setValue("all_day", allDay)
   }
 
-  const showBusiness = watchedType === "meeting" || watchedType === "job" || watchedType === "reminder"
+  const showBusiness = watchedType === "meeting" || watchedType === "job"
   const showClient = watchedType === "meeting" || watchedType === "job"
-  const showReminderClient = watchedType === "reminder"
+  const showReminderClient = false
   const showPurpose = watchedType === "meeting"
   const showGolfPurpose = watchedType === "golf"
   const isJob = watchedType === "job"
@@ -345,9 +344,6 @@ export function EventForm({
                       type="button"
                       onClick={() => {
                         field.onChange(value)
-                        if (value === "reminder" && !userToggledAllDay.current) {
-                          setAllDayWithTimes(true)
-                        }
                         if (value === "personal" || value === "golf") {
                           form.setValue("business_id", null)
                           form.setValue("client_id", null)
@@ -359,12 +355,6 @@ export function EventForm({
                         }
                         if (value !== "golf") {
                           form.setValue("golf_purpose", null)
-                        }
-                        if (value !== "reminder") {
-                          form.setValue("reminder_for_client_id", null)
-                        }
-                        if (value === "reminder") {
-                          form.setValue("client_id", null)
                         }
                         if (value === "job") {
                           setRecurrence(null)
@@ -396,9 +386,7 @@ export function EventForm({
                 <FormControl>
                   <Input
                     placeholder={
-                      watchedType === "reminder"
-                        ? "Reminder title (e.g. Follow up with Smith wedding)"
-                        : "Event title"
+                      "Event title"
                     }
                     {...field}
                   />
@@ -940,11 +928,6 @@ export function EventForm({
         defaultBusinessId={watchedBusinessId}
         onCreated={(client) => {
           form.setValue("client_id", client.id)
-          if (form.getValues("type") === "reminder") {
-            form.setValue("reminder_for_client_id", client.id)
-          } else {
-            form.setValue("client_id", client.id)
-          }
         }}
       />
     </Form>
