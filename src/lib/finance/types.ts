@@ -30,6 +30,7 @@ export type Transaction = {
   invoice_id: string | null;
   payment_id: string | null;
   bill_payment_id: string | null;
+  source_transaction_id: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;

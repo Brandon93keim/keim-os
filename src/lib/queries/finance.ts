@@ -2,6 +2,12 @@ import { createClient } from "@/lib/supabase/client"
 import type { AccountWithBalance, TransactionWithRelations, AllocationRuleWithAccount } from "@/lib/finance/types"
 import type { AccountFormValues, TransactionFormValues, AllocationRuleFormValues } from "@/lib/finance/schemas"
 
+export type DistributionLine = {
+  label: string
+  destination_account_id: string
+  amount: number
+}
+
 export type TransactionFilters = {
   account_id?: string
   business_id?: string
@@ -303,4 +309,69 @@ export async function listAccountTransactions(
 
   if (error) throw error
   return (data ?? []) as unknown as TransactionWithRelations[]
+}
+
+export async function getDistribution(
+  incomeId: string
+): Promise<TransactionWithRelations[]> {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const { data, error } = await supabase
+    .from("transactions")
+    .select(`
+      *,
+      account:accounts!account_id(id, name, kind),
+      transfer_to_account:accounts!transfer_to_account_id(id, name)
+    `)
+    .eq("user_id", user.id)
+    .eq("source_transaction_id", incomeId)
+    .order("created_at", { ascending: true })
+
+  if (error) throw error
+  return (data ?? []) as unknown as TransactionWithRelations[]
+}
+
+export async function createDistribution(
+  income: { id: string; account_id: string; occurred_on: string },
+  lines: DistributionLine[]
+): Promise<void> {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const rows = lines
+    .filter((l) => l.amount > 0)
+    .filter((l) => l.destination_account_id !== income.account_id)
+    .map((l) => ({
+      user_id: user.id,
+      account_id: income.account_id,
+      transfer_to_account_id: l.destination_account_id,
+      type: "transfer" as const,
+      amount: l.amount,
+      occurred_on: income.occurred_on,
+      business_id: null,
+      source_transaction_id: income.id,
+      description: `Allocation: ${l.label}`,
+      notes: null,
+    }))
+
+  if (!rows.length) return
+
+  const { error } = await supabase.from("transactions").insert(rows)
+  if (error) throw error
+}
+
+export async function undoDistribution(incomeId: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from("transactions")
+    .delete()
+    .eq("source_transaction_id", incomeId)
+  if (error) throw error
 }

@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { DistributeDialog } from "./DistributeDialog"
 
 const TYPE_OPTIONS = [
   { value: "income", label: "Income" },
@@ -58,6 +59,7 @@ export function TransactionForm({ transaction, defaultAccountId, onSuccess, onCa
   const { data: accounts = [] } = useAllAccounts()
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [distributeOpen, setDistributeOpen] = useState(false)
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionFormSchema),
@@ -134,6 +136,7 @@ export function TransactionForm({ transaction, defaultAccountId, onSuccess, onCa
   }
 
   return (
+    <>
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
         <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y px-4 py-4 pb-6 space-y-5">
@@ -354,6 +357,18 @@ export function TransactionForm({ transaction, defaultAccountId, onSuccess, onCa
             )}
           />
 
+          {/* Distribute funds — income only, editing only */}
+          {transaction?.type === "income" && (
+            <button
+              type="button"
+              onClick={() => setDistributeOpen(true)}
+              className="flex w-full items-center justify-between rounded-lg border border-border px-4 py-3 text-sm font-medium hover:bg-muted/40 active:bg-muted/60 transition-colors"
+            >
+              <span>Distribute funds</span>
+              <span className="text-muted-foreground text-xs">→</span>
+            </button>
+          )}
+
           {/* Delete confirm inline */}
           {showDeleteConfirm && (
             <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-3 space-y-2">
@@ -412,5 +427,14 @@ export function TransactionForm({ transaction, defaultAccountId, onSuccess, onCa
         </div>
       </form>
     </Form>
+
+    {transaction?.type === "income" && (
+      <DistributeDialog
+        open={distributeOpen}
+        onClose={() => setDistributeOpen(false)}
+        income={transaction}
+      />
+    )}
+    </>
   )
 }
