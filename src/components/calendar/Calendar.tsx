@@ -13,6 +13,7 @@ import { InvoiceFormSheet } from "@/components/invoices/InvoiceFormSheet"
 import { getCalendarDays, getWeekDays } from "@/lib/date"
 import { toast } from "sonner"
 import { useEventsBetween, type CalEvent } from "@/lib/hooks/useEvents"
+import { useTasks } from "@/lib/hooks/useTasks"
 import { getInvoicePrefillForJob, type UnbilledJob } from "@/lib/queries/jobs"
 import type { EventFormValues } from "@/lib/validations/event"
 import type { RecurringScope } from "@/components/events/RecurringEditDialog"
@@ -71,6 +72,7 @@ export function Calendar() {
   })()
 
   const { data: events = [] } = useEventsBetween(queryWindow.start, queryWindow.end)
+  const { data: tasks = [] } = useTasks()
 
   function goToToday() {
     setAnchorDate(startOfDay(new Date()))
@@ -178,6 +180,7 @@ export function Calendar() {
             anchorDate={anchorDate}
             selectedDate={selectedDate}
             events={events}
+            tasks={tasks}
             onDayTap={handleDayTap}
             onAnchorChange={(d) => { setAnchorDate(d); setSelectedDate(null) }}
           />

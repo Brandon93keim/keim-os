@@ -3,7 +3,9 @@
 import { useEffect, useRef, useMemo } from "react"
 import { isSameDay, isToday, isSameMonth, format, addMonths, startOfMonth } from "date-fns"
 import { getCalendarDays } from "@/lib/date"
-import { BUSINESSES } from "@/lib/constants"
+import { getBusinessById } from "@/lib/constants"
+import { getEffectiveTaskStatus, STATUS_COLORS } from "@/lib/taskStatus"
+import type { TaskWithRelations } from "@/lib/hooks/useTasks"
 import { cn } from "@/lib/utils"
 import { computeWeekBars, chunkIntoWeeks } from "@/lib/calendarBars"
 import type { CalEvent } from "@/lib/hooks/useEvents"
@@ -23,29 +25,14 @@ interface Props {
   anchorDate: Date
   selectedDate: Date | null
   events: CalEvent[]
+  tasks: TaskWithRelations[]
   onDayTap: (day: Date) => void
   onAnchorChange: (date: Date) => void
 }
 
-function getReminderDots(events: CalEvent[]) {
-  return events.map((e) => {
-    const biz = BUSINESSES.find((b) => b.id === e.business_id)
-    return { color: biz?.color ?? "#9ca3af" }
-  })
-}
 
-function getReminderEventsForDay(events: CalEvent[], day: Date): CalEvent[] {
-  const dayStart = new Date(day); dayStart.setHours(0, 0, 0, 0)
-  const dayEnd = new Date(day); dayEnd.setHours(23, 59, 59, 999)
-  return events.filter((e) => {
-    if (e.type !== "reminder") return false
-    const start = new Date(e.start_time)
-    const end = new Date(e.end_time)
-    return start <= dayEnd && end >= dayStart
-  })
-}
-
-export function MonthView({ anchorDate, selectedDate, events, onDayTap, onAnchorChange }: Props) {
+export function MonthView({ anchorDate, selectedDate, events, tasks, onDayTap, onAnchorChange }: Props) {
+  const today = format(new Date(), "yyyy-MM-dd")
   const months = useMemo(
     () => Array.from({ length: MONTH_COUNT }, (_, i) => startOfMonth(addMonths(startOfMonth(new Date()), i - CENTER_IDX))),
     []
@@ -148,8 +135,12 @@ export function MonthView({ anchorDate, selectedDate, events, onDayTap, onAnchor
               return (
                 <div key={weekIdx} className="relative grid grid-cols-7 min-h-[90px]">
                   {week.map((day, colIdx) => {
-                    const reminderEvents = getReminderEventsForDay(events, day)
-                    const dots = getReminderDots(reminderEvents)
+                    const dayStr = format(day, "yyyy-MM-dd")
+                    const dayTasks = tasks.filter((t) => t.due_on === dayStr)
+                    const dots = dayTasks.map((t) => {
+                      if (getEffectiveTaskStatus(t, today) === "overdue") return { color: STATUS_COLORS.overdue }
+                      return { color: (t.business_id ? getBusinessById(t.business_id)?.color : undefined) ?? "#9ca3af" }
+                    })
                     const visibleDots = dots.slice(0, MAX_DOTS)
                     const extraDots = dots.length > MAX_DOTS ? dots.length - MAX_DOTS : 0
                     const overflowCount = overflow[colIdx]
