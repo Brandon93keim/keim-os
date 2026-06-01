@@ -127,3 +127,14 @@ export const billPaymentFormSchema = z.object({
 })
 
 export type BillPaymentFormValues = z.infer<typeof billPaymentFormSchema>
+
+export const allocationRuleFormSchema = z.object({
+  label: z.string().min(1, "Label is required").max(60, "Label must be 60 characters or fewer"),
+  percentage: z
+    .number()
+    .positive("Percentage must be greater than 0")
+    .max(100, "Percentage cannot exceed 100"),
+  destination_account_id: z.string().uuid("Destination account is required"),
+})
+
+export type AllocationRuleFormValues = z.infer<typeof allocationRuleFormSchema>

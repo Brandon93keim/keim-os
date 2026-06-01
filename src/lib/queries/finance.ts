@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/client"
-import type { AccountWithBalance, TransactionWithRelations } from "@/lib/finance/types"
-import type { AccountFormValues, TransactionFormValues } from "@/lib/finance/schemas"
+import type { AccountWithBalance, TransactionWithRelations, AllocationRuleWithAccount } from "@/lib/finance/types"
+import type { AccountFormValues, TransactionFormValues, AllocationRuleFormValues } from "@/lib/finance/schemas"
 
 export type TransactionFilters = {
   account_id?: string
@@ -223,6 +223,61 @@ export async function listDrillDownTransactions(
   const { data, error } = await query
   if (error) throw error
   return (data ?? []) as unknown as TransactionWithRelations[]
+}
+
+export async function listAllocationRules(): Promise<AllocationRuleWithAccount[]> {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+  const { data, error } = await supabase
+    .from("allocation_rules")
+    .select(`
+      *,
+      destination_account:accounts!destination_account_id(id, name)
+    `)
+    .eq("user_id", user.id)
+    .order("sort_order")
+  if (error) throw error
+  return (data ?? []) as unknown as AllocationRuleWithAccount[]
+}
+
+export async function createAllocationRule(values: AllocationRuleFormValues): Promise<void> {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+  const { error } = await supabase.from("allocation_rules").insert({
+    user_id: user.id,
+    label: values.label,
+    destination_account_id: values.destination_account_id,
+    percentage: values.percentage,
+  })
+  if (error) throw error
+}
+
+export async function updateAllocationRule(
+  id: string,
+  values: AllocationRuleFormValues
+): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from("allocation_rules")
+    .update({
+      label: values.label,
+      destination_account_id: values.destination_account_id,
+      percentage: values.percentage,
+    })
+    .eq("id", id)
+  if (error) throw error
+}
+
+export async function deleteAllocationRule(id: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from("allocation_rules").delete().eq("id", id)
+  if (error) throw error
 }
 
 export async function listAccountTransactions(

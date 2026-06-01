@@ -703,6 +703,7 @@ export type Database = {
           invoice_id: string | null
           payment_id: string | null
           bill_payment_id: string | null
+          source_transaction_id: string | null
           notes: string | null
           created_at: string
           updated_at: string
@@ -721,6 +722,7 @@ export type Database = {
           invoice_id?: string | null
           payment_id?: string | null
           bill_payment_id?: string | null
+          source_transaction_id?: string | null
           notes?: string | null
           created_at?: string
           updated_at?: string
@@ -739,6 +741,7 @@ export type Database = {
           invoice_id?: string | null
           payment_id?: string | null
           bill_payment_id?: string | null
+          source_transaction_id?: string | null
           notes?: string | null
           created_at?: string
           updated_at?: string
@@ -872,6 +875,47 @@ export type Database = {
           {
             foreignKeyName: "bill_payments_account_id_fkey"
             columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      allocation_rules: {
+        Row: {
+          id: string
+          user_id: string
+          label: string
+          destination_account_id: string
+          percentage: number
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          label: string
+          destination_account_id: string
+          percentage: number
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          label?: string
+          destination_account_id?: string
+          percentage?: number
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "allocation_rules_destination_account_id_fkey"
+            columns: ["destination_account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]

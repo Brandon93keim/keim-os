@@ -154,6 +154,17 @@ export function AccountList() {
         </Link>
       </div>
 
+      {/* Income allocation link */}
+      <div className="border-b border-border px-4 py-3">
+        <Link
+          href="/money/allocations"
+          className="flex items-center justify-between text-sm font-medium text-primary hover:opacity-80 transition-opacity"
+        >
+          Income allocation rules
+          <ArrowRight size={16} />
+        </Link>
+      </div>
+
       <CommittedOutflowsCard />
       <PnLPeekCard />
 

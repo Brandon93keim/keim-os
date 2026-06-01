@@ -95,3 +95,18 @@ export type BillPayment = {
 export type BillWithNextDue = Bill & {
   next_due_date: string | null;
 };
+
+export type AllocationRule = {
+  id: string;
+  user_id: string;
+  label: string;
+  destination_account_id: string;
+  percentage: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AllocationRuleWithAccount = AllocationRule & {
+  destination_account: { id: string; name: string } | null;
+};
