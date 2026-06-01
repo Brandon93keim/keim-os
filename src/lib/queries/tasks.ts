@@ -128,3 +128,12 @@ export async function deleteTask(id: string): Promise<void> {
   const { error } = await supabase.from("tasks").delete().eq("id", id)
   if (error) throw error
 }
+
+export function getEffectiveTaskStatus(
+  task: Pick<TaskRow, "status" | "due_on">,
+  today: string
+): "open" | "done" | "overdue" {
+  if (task.status === "done") return "done"
+  if (task.due_on && task.due_on < today) return "overdue"
+  return "open"
+}
