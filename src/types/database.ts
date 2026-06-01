@@ -922,6 +922,69 @@ export type Database = {
           },
         ]
       }
+      tasks: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          notes: string | null
+          due_on: string | null
+          due_time: string | null
+          status: string
+          completed_at: string | null
+          client_id: string | null
+          business_id: string | null
+          job_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          notes?: string | null
+          due_on?: string | null
+          due_time?: string | null
+          status?: string
+          completed_at?: string | null
+          client_id?: string | null
+          business_id?: string | null
+          job_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          notes?: string | null
+          due_on?: string | null
+          due_time?: string | null
+          status?: string
+          completed_at?: string | null
+          client_id?: string | null
+          business_id?: string | null
+          job_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       accounts_with_balance: {
