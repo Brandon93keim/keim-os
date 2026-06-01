@@ -52,13 +52,23 @@ import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import type { BUSINESS_IDS } from "@/lib/validations/client"
 
+interface TaskFormDefaults {
+  job_id?: string | null
+  business_id?: string | null
+  client_id?: string | null
+}
+
 interface Props {
   task?: TaskWithRelations | null
   onSuccess: () => void
   onCancel: () => void
+  defaults?: TaskFormDefaults
 }
 
-function buildDefaultValues(task?: TaskWithRelations | null): TaskFormInput {
+function buildDefaultValues(
+  task?: TaskWithRelations | null,
+  defaults?: TaskFormDefaults
+): TaskFormInput {
   if (task) {
     return {
       title: task.title,
@@ -74,12 +84,12 @@ function buildDefaultValues(task?: TaskWithRelations | null): TaskFormInput {
     notes: null,
     due_on: new Date(),
     due_time: null,
-    client_id: null,
-    business_id: null,
+    client_id: defaults?.client_id ?? null,
+    business_id: (defaults?.business_id as (typeof BUSINESS_IDS)[number] | null) ?? null,
   }
 }
 
-export function TaskForm({ task, onSuccess, onCancel }: Props) {
+export function TaskForm({ task, onSuccess, onCancel, defaults }: Props) {
   const createTask = useCreateTask()
   const updateTask = useUpdateTask()
   const deleteTask = useDeleteTask()
@@ -89,7 +99,7 @@ export function TaskForm({ task, onSuccess, onCancel }: Props) {
 
   const form = useForm<TaskFormInput>({
     resolver: zodResolver(taskFormSchema),
-    defaultValues: buildDefaultValues(task),
+    defaultValues: buildDefaultValues(task, defaults),
   })
 
   const watchedDueOn = form.watch("due_on")
@@ -109,7 +119,7 @@ export function TaskForm({ task, onSuccess, onCancel }: Props) {
     if (task) {
       updateTask.mutate({ id: task.id, values: payload }, { onSuccess })
     } else {
-      createTask.mutate(payload, { onSuccess })
+      createTask.mutate({ ...payload, job_id: defaults?.job_id ?? null }, { onSuccess })
     }
   }
 

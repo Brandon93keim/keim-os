@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { format } from "date-fns"
-import { AlertCircle, Bell, MapPin, User, Edit2, Trash2, Repeat } from "lucide-react"
+import { format, parseISO } from "date-fns"
+import { AlertCircle, Bell, MapPin, Plus, User, Edit2, Trash2, Repeat } from "lucide-react"
 import { useRouter } from "next/navigation"
 import {
   Sheet,
@@ -35,10 +35,12 @@ import {
 import { useClients } from "@/lib/hooks/useClients"
 import { useIsEventBilled } from "@/lib/hooks/useInvoices"
 import { useUpdateJob } from "@/lib/hooks/useJobs"
+import { useTasksForJob, useToggleTaskStatus, type TaskWithRelations } from "@/lib/hooks/useTasks"
 import { configFromRRule, describeRecurrence } from "@/lib/recurrence"
 import { countSeriesOccurrences } from "@/lib/queries/events"
 import { RecurringEditDialog, type RecurringScope } from "./RecurringEditDialog"
 import { EditJobDialog } from "@/components/jobs/EditJobDialog"
+import { TaskFormSheet } from "@/components/tasks/TaskFormSheet"
 
 interface Props {
   open: boolean
@@ -90,6 +92,7 @@ export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice
   const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
   const [editJobOpen, setEditJobOpen] = useState(false)
   const [proBonoConfirmOpen, setProBonoConfirmOpen] = useState(false)
+  const [taskFormOpen, setTaskFormOpen] = useState(false)
   const router = useRouter()
 
   const deleteEvent = useDeleteEvent()
@@ -101,6 +104,18 @@ export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice
 
   const jobId = event?.job?.id ?? null
   const { data: jobEvents = [] } = useEventsForJob(jobId)
+  const { data: jobTasks = [] } = useTasksForJob(jobId)
+  const toggle = useToggleTaskStatus()
+
+  const today = format(new Date(), "yyyy-MM-dd")
+  const openJobTasks = jobTasks.filter((t) => t.status !== "done")
+
+  function jobTaskDueLabel(task: TaskWithRelations): string | null {
+    if (!task.due_on) return null
+    if (task.due_on === today) return "Today"
+    if (task.due_on < today) return `Overdue · ${format(parseISO(task.due_on), "MMM d")}`
+    return format(parseISO(task.due_on), "MMM d")
+  }
 
   const isPastJob = event?.type === "job" && new Date(event.start_time) <= new Date()
   const { data: isBilled } = useIsEventBilled(isPastJob ? event!.id : null)
@@ -269,6 +284,46 @@ export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice
                     ))}
                   </div>
                 )}
+
+                <div className="pt-2 border-t border-border space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Tasks ({openJobTasks.length})
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTaskFormOpen(true)}
+                      className="flex items-center gap-0.5 text-xs text-primary"
+                    >
+                      <Plus size={12} />
+                      Add task
+                    </button>
+                  </div>
+                  {openJobTasks.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">No open tasks</div>
+                  ) : (
+                    openJobTasks.map((task) => {
+                      const dueLabel = jobTaskDueLabel(task)
+                      const isOverdue = !!task.due_on && task.due_on < today
+                      return (
+                        <div key={task.id} className="flex items-center gap-2 py-0.5">
+                          <button
+                            type="button"
+                            onClick={() => toggle.mutate({ id: task.id, done: true })}
+                            className="shrink-0 w-4 h-4 rounded border border-border flex items-center justify-center hover:border-primary transition-colors"
+                            aria-label="Mark complete"
+                          />
+                          <span className="text-xs flex-1 truncate">{task.title}</span>
+                          {dueLabel && (
+                            <span className={`text-xs shrink-0 ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}>
+                              {dueLabel}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
               </div>
             )}
 
@@ -484,6 +539,16 @@ export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice
         open={editJobOpen}
         onClose={() => setEditJobOpen(false)}
         job={event.job ?? null}
+      />
+
+      <TaskFormSheet
+        open={taskFormOpen}
+        onClose={() => setTaskFormOpen(false)}
+        defaults={event.job ? {
+          job_id: event.job.id,
+          business_id: event.business_id,
+          client_id: event.client_id,
+        } : undefined}
       />
 
       <AlertDialog open={proBonoConfirmOpen} onOpenChange={setProBonoConfirmOpen}>

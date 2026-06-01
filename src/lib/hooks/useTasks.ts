@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
   listTasks,
+  listTasksForJob,
   createTask,
   updateTask as updateTaskQuery,
   toggleTaskStatus as toggleTaskStatusQuery,
@@ -15,6 +16,14 @@ export function useTasks() {
   return useQuery({
     queryKey: ["tasks"],
     queryFn: listTasks,
+  })
+}
+
+export function useTasksForJob(jobId: string | null) {
+  return useQuery({
+    queryKey: ["tasks", "job", jobId],
+    queryFn: () => listTasksForJob(jobId!),
+    enabled: !!jobId,
   })
 }
 

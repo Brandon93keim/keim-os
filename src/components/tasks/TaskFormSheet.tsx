@@ -9,13 +9,20 @@ import {
 import { TaskForm } from "./TaskForm"
 import type { TaskWithRelations } from "@/lib/hooks/useTasks"
 
+interface TaskFormDefaults {
+  job_id?: string | null
+  business_id?: string | null
+  client_id?: string | null
+}
+
 interface Props {
   open: boolean
   onClose: () => void
   task?: TaskWithRelations | null
+  defaults?: TaskFormDefaults
 }
 
-export function TaskFormSheet({ open, onClose, task }: Props) {
+export function TaskFormSheet({ open, onClose, task, defaults }: Props) {
   const title = task ? "Edit Task" : "New Task"
 
   return (
@@ -29,7 +36,7 @@ export function TaskFormSheet({ open, onClose, task }: Props) {
         <SheetHeader className="px-4 pt-5 pb-3 border-b border-border shrink-0">
           <SheetTitle>{title}</SheetTitle>
         </SheetHeader>
-        <TaskForm task={task} onSuccess={onClose} onCancel={onClose} />
+        <TaskForm task={task} onSuccess={onClose} onCancel={onClose} defaults={defaults} />
       </SheetContent>
     </Sheet>
   )

@@ -128,3 +128,17 @@ export async function deleteTask(id: string): Promise<void> {
   const { error } = await supabase.from("tasks").delete().eq("id", id)
   if (error) throw error
 }
+
+export async function listTasksForJob(jobId: string): Promise<TaskWithRelations[]> {
+  const supabase = createClient()
+  const userId = await getUserId()
+  const { data, error } = await supabase
+    .from("tasks")
+    .select(TASK_SELECT)
+    .eq("user_id", userId)
+    .eq("job_id", jobId)
+    .order("due_on", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true })
+  if (error) throw error
+  return (data ?? []).map((r) => mapTask(r as unknown as TaskRaw))
+}
