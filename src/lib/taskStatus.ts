@@ -1,5 +1,3 @@
-import { format } from "date-fns"
-
 export type TaskStatus = "open" | "done" | "overdue"
 
 type TaskLike = {
@@ -7,12 +5,9 @@ type TaskLike = {
   due_on: string | null
 }
 
-export function getEffectiveTaskStatus(task: TaskLike): TaskStatus {
+export function getEffectiveTaskStatus(task: TaskLike, today: string): TaskStatus {
   if (task.status === "done") return "done"
-  if (task.due_on != null) {
-    const today = format(new Date(), "yyyy-MM-dd")
-    if (task.due_on < today) return "overdue"
-  }
+  if (task.due_on != null && task.due_on < today) return "overdue"
   return "open"
 }
 
