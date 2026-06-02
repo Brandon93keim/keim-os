@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { addDays, format } from "date-fns"
-import { Download, Plus, Trash2, X } from "lucide-react"
+import { Bookmark, Download, Plus, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 import {
   invoiceFormSchema,
@@ -18,7 +18,7 @@ import {
 import { BUSINESSES, getBusinessById } from "@/lib/constants"
 import { BUSINESS_IDS } from "@/lib/validations/client"
 import { useCreateInvoice, useUpdateInvoice, useMarkInvoiceSent, useJobsForLineItem } from "@/lib/hooks/useInvoices"
-import { useLineItemTemplates } from "@/lib/hooks/useLineItemTemplates"
+import { useLineItemTemplates, useCreateLineItemTemplate } from "@/lib/hooks/useLineItemTemplates"
 import type { LineItemTemplate } from "@/lib/queries/lineItemTemplates"
 import { useClients } from "@/lib/hooks/useClients"
 import { useProfile } from "@/lib/hooks/useProfile"
@@ -394,6 +394,7 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
                   form={form}
                   availableJobs={availableJobs}
                   templates={templates}
+                  watchedBusinessId={watchedBusinessId}
                   onRemove={fields.length > 1 ? () => remove(index) : undefined}
                 />
               ))}
@@ -632,6 +633,7 @@ interface LineItemRowProps {
   form: any
   availableJobs: Job[]
   templates: LineItemTemplate[]
+  watchedBusinessId: string | null
   onRemove?: () => void
 }
 
@@ -641,8 +643,11 @@ const UNIT_TYPE_LABELS: Record<'hourly' | 'quantity' | 'flat', string> = {
   flat: 'Flat',
 }
 
-function LineItemRow({ index, form, availableJobs, templates, onRemove }: LineItemRowProps) {
+function LineItemRow({ index, form, availableJobs, templates, watchedBusinessId, onRemove }: LineItemRowProps) {
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
+  const [templateScope, setTemplateScope] = useState<string | null>(watchedBusinessId)
+  const createTemplate = useCreateLineItemTemplate()
 
   const description = (form.watch(`line_items.${index}.description`) as string) || ""
   const unitType = (form.watch(`line_items.${index}.unit_type`) || 'quantity') as 'hourly' | 'quantity' | 'flat'
@@ -689,6 +694,27 @@ function LineItemRow({ index, form, availableJobs, templates, onRemove }: LineIt
     if (!form.getValues(`line_items.${index}.unit_price`) && job.job_total_amount != null) {
       form.setValue(`line_items.${index}.unit_price`, job.job_total_amount)
     }
+  }
+
+  function handleSaveTemplate() {
+    const normalizedDesc = description.trim().toLowerCase()
+    const duplicate = templates.some(
+      (t) => t.description.toLowerCase() === normalizedDesc && t.business_id === templateScope
+    )
+    if (duplicate) {
+      toast("Template already exists")
+      setSaveTemplateOpen(false)
+      return
+    }
+    createTemplate.mutate(
+      {
+        description: description.trim(),
+        default_unit_price: price,
+        unit_type: unitType,
+        business_id: templateScope,
+      },
+      { onSuccess: () => setSaveTemplateOpen(false) }
+    )
   }
 
   const currentEventId = form.watch(`line_items.${index}.event_id`)
@@ -738,6 +764,66 @@ function LineItemRow({ index, form, availableJobs, templates, onRemove }: LineIt
             </ul>
           )}
         </div>
+        <Popover
+          open={saveTemplateOpen}
+          onOpenChange={(open) => {
+            if (open) setTemplateScope(watchedBusinessId)
+            setSaveTemplateOpen(open)
+          }}
+        >
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              disabled={!description.trim()}
+              title="Save as template"
+              className="shrink-0 h-9 w-9 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Bookmark size={14} />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-3 space-y-3" align="end">
+            <p className="text-xs text-muted-foreground">
+              Save{" "}
+              <span className="font-medium text-foreground">&ldquo;{description}&rdquo;</span>{" "}
+              as a template for:
+            </p>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => setTemplateScope(watchedBusinessId)}
+                className={cn(
+                  "flex-1 h-7 rounded text-xs font-medium transition-colors border truncate px-2",
+                  templateScope !== null
+                    ? "bg-foreground text-background border-foreground"
+                    : "bg-transparent text-muted-foreground border-border hover:text-foreground"
+                )}
+              >
+                {getBusinessById(watchedBusinessId ?? "")?.name ?? "This business"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setTemplateScope(null)}
+                className={cn(
+                  "flex-1 h-7 rounded text-xs font-medium transition-colors border",
+                  templateScope === null
+                    ? "bg-foreground text-background border-foreground"
+                    : "bg-transparent text-muted-foreground border-border hover:text-foreground"
+                )}
+              >
+                All businesses
+              </button>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              className="w-full"
+              onClick={handleSaveTemplate}
+              disabled={createTemplate.isPending}
+            >
+              Save
+            </Button>
+          </PopoverContent>
+        </Popover>
         {onRemove && (
           <button
             type="button"
