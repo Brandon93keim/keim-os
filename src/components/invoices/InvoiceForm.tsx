@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { addDays, format } from "date-fns"
@@ -18,6 +18,8 @@ import {
 import { BUSINESSES, getBusinessById } from "@/lib/constants"
 import { BUSINESS_IDS } from "@/lib/validations/client"
 import { useCreateInvoice, useUpdateInvoice, useMarkInvoiceSent, useJobsForLineItem } from "@/lib/hooks/useInvoices"
+import { useLineItemTemplates } from "@/lib/hooks/useLineItemTemplates"
+import type { LineItemTemplate } from "@/lib/queries/lineItemTemplates"
 import { useClients } from "@/lib/hooks/useClients"
 import { useProfile } from "@/lib/hooks/useProfile"
 import { getInvoice } from "@/lib/queries/invoices"
@@ -152,6 +154,7 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
     watchedClientId || null,
     watchedBusinessId || null
   )
+  const { data: templates = [] } = useLineItemTemplates(watchedBusinessId || null)
 
   const selectedClient = clients.find((c) => c.id === watchedClientId)
 
@@ -390,6 +393,7 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
                   index={index}
                   form={form}
                   availableJobs={availableJobs}
+                  templates={templates}
                   onRemove={fields.length > 1 ? () => remove(index) : undefined}
                 />
               ))}
@@ -627,13 +631,49 @@ interface LineItemRowProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: any
   availableJobs: Job[]
+  templates: LineItemTemplate[]
   onRemove?: () => void
 }
 
-function LineItemRow({ index, form, availableJobs, onRemove }: LineItemRowProps) {
+const UNIT_TYPE_LABELS: Record<'hourly' | 'quantity' | 'flat', string> = {
+  hourly: 'Hours',
+  quantity: 'Qty',
+  flat: 'Flat',
+}
+
+function LineItemRow({ index, form, availableJobs, templates, onRemove }: LineItemRowProps) {
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+
+  const description = (form.watch(`line_items.${index}.description`) as string) || ""
+  const unitType = (form.watch(`line_items.${index}.unit_type`) || 'quantity') as 'hourly' | 'quantity' | 'flat'
   const qty = form.watch(`line_items.${index}.quantity`) || 0
   const price = form.watch(`line_items.${index}.unit_price`) || 0
   const rowTotal = Math.round(qty * price * 100) / 100
+
+  const filteredTemplates = templates.filter((t) =>
+    description === "" || t.description.toLowerCase().includes(description.toLowerCase())
+  )
+
+  function handleTemplateSelect(t: LineItemTemplate) {
+    form.setValue(`line_items.${index}.description`, t.description, { shouldValidate: true })
+    form.setValue(`line_items.${index}.unit_price`, t.default_unit_price)
+    const newType = t.unit_type ?? 'quantity'
+    form.setValue(`line_items.${index}.unit_type`, newType)
+    if (newType === 'flat') {
+      form.setValue(`line_items.${index}.quantity`, 1)
+    }
+    setSuggestionsOpen(false)
+  }
+
+  function handleUnitTypeChange(newType: 'hourly' | 'quantity' | 'flat') {
+    const prevType = form.getValues(`line_items.${index}.unit_type`) as string
+    form.setValue(`line_items.${index}.unit_type`, newType)
+    if (newType === 'flat') {
+      form.setValue(`line_items.${index}.quantity`, 1)
+    } else if (prevType === 'flat') {
+      form.setValue(`line_items.${index}.quantity`, 1)
+    }
+  }
 
   function handleJobSelect(jobId: string) {
     if (jobId === "__none__") {
@@ -653,19 +693,51 @@ function LineItemRow({ index, form, availableJobs, onRemove }: LineItemRowProps)
 
   const currentEventId = form.watch(`line_items.${index}.event_id`)
 
+  const { onBlur: regBlur, ...descReg } = form.register(`line_items.${index}.description`)
+
+  const qtyConfig = unitType === 'hourly'
+    ? { label: 'Hours', step: 0.25, min: 0.25, placeholder: '0.25' }
+    : { label: 'Qty', step: 1, min: 1, placeholder: '1' }
+
   return (
     <div className="rounded-xl border border-border bg-card p-3 space-y-2.5">
-      {/* Description row */}
+      {/* Description with typeahead */}
       <div className="flex items-start gap-2">
-        <input
-          type="text"
-          placeholder="Description *"
-          {...form.register(`line_items.${index}.description`)}
-          className={cn(
-            "flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-            form.formState.errors.line_items?.[index]?.description && "border-destructive"
+        <div className="flex-1 relative">
+          <input
+            type="text"
+            placeholder="Description *"
+            {...descReg}
+            onFocus={() => setSuggestionsOpen(true)}
+            onBlur={(e) => {
+              regBlur(e)
+              setTimeout(() => setSuggestionsOpen(false), 150)
+            }}
+            className={cn(
+              "w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+              form.formState.errors.line_items?.[index]?.description && "border-destructive"
+            )}
+          />
+          {suggestionsOpen && filteredTemplates.length > 0 && (
+            <ul className="absolute z-50 top-full mt-1 left-0 right-0 max-h-48 overflow-y-auto rounded-md border border-border bg-popover shadow-md">
+              {filteredTemplates.map((t) => (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleTemplateSelect(t)}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground flex items-center justify-between gap-2"
+                  >
+                    <span>{t.description}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      ${t.default_unit_price.toFixed(2)} · {t.unit_type === 'hourly' ? 'hrs' : t.unit_type === 'flat' ? 'flat' : 'qty'}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
-        />
+        </div>
         {onRemove && (
           <button
             type="button"
@@ -675,6 +747,25 @@ function LineItemRow({ index, form, availableJobs, onRemove }: LineItemRowProps)
             <X size={14} />
           </button>
         )}
+      </div>
+
+      {/* Unit type toggle */}
+      <div className="flex gap-1">
+        {(Object.keys(UNIT_TYPE_LABELS) as Array<'hourly' | 'quantity' | 'flat'>).map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => handleUnitTypeChange(type)}
+            className={cn(
+              "flex-1 h-7 rounded text-xs font-medium transition-colors border",
+              unitType === type
+                ? "bg-foreground text-background border-foreground"
+                : "bg-transparent text-muted-foreground border-border hover:text-foreground"
+            )}
+          >
+            {UNIT_TYPE_LABELS[type]}
+          </button>
+        ))}
       </div>
 
       {/* Linked job (if jobs available) */}
@@ -700,18 +791,22 @@ function LineItemRow({ index, form, availableJobs, onRemove }: LineItemRowProps)
 
       {/* Qty | Price | Total */}
       <div className="flex items-center gap-2">
-        <div className="w-16">
-          <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Qty</Label>
-          <input
-            type="number"
-            inputMode="decimal"
-            min={0.01}
-            step={0.01}
-            placeholder="1"
-            {...form.register(`line_items.${index}.quantity`, { valueAsNumber: true })}
-            className="mt-0.5 w-full h-9 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring tabular-nums"
-          />
-        </div>
+        {unitType !== 'flat' && (
+          <div className="w-16">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              {qtyConfig.label}
+            </Label>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={qtyConfig.min}
+              step={qtyConfig.step}
+              placeholder={qtyConfig.placeholder}
+              {...form.register(`line_items.${index}.quantity`, { valueAsNumber: true })}
+              className="mt-0.5 w-full h-9 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring tabular-nums"
+            />
+          </div>
+        )}
         <div className="flex-1">
           <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Unit price</Label>
           <div className="mt-0.5 flex items-center gap-1">
