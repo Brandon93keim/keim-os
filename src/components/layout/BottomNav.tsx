@@ -8,7 +8,6 @@ import {
   FileText,
   DollarSign,
   CheckSquare,
-  Settings,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -18,7 +17,6 @@ const NAV_ITEMS = [
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/invoices", label: "Invoices", icon: FileText },
   { href: "/money", label: "Money", icon: DollarSign },
-  { href: "/settings", label: "Settings", icon: Settings },
 ]
 
 export function BottomNav() {

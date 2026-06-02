@@ -45,7 +45,7 @@ export function CalendarHeader({
   return (
     <>
       <div className="sticky top-0 z-20 bg-background border-b border-border shrink-0">
-        <div className="flex items-center gap-2 px-3 py-2">
+        <div className="flex items-center gap-2 px-3 py-2 pr-10">
           <Button variant="ghost" size="sm" onClick={onToday} className="text-xs h-8 px-2">
             Today
           </Button>
