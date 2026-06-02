@@ -36,6 +36,7 @@ export const lineItemFormSchema = z.object({
   description: z.string().min(1, "Required"),
   quantity: z.number().positive("Must be > 0"),
   unit_price: z.number().nonnegative(),
+  unit_type: z.enum(['hourly', 'quantity', 'flat']).default('quantity'),
 })
 
 export const invoiceFormSchema = z

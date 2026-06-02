@@ -73,6 +73,7 @@ function buildDefaults(invoice?: Invoice | null, prefillJob?: UnbilledJob | null
         description: li.description,
         quantity: li.quantity,
         unit_price: li.unit_price,
+        unit_type: li.unit_type ?? 'quantity',
       })),
     }
   }
@@ -87,8 +88,9 @@ function buildDefaults(invoice?: Invoice | null, prefillJob?: UnbilledJob | null
           description: ev.title,
           quantity: 1,
           unit_price: 0,
+          unit_type: 'quantity' as const,
         }))
-      : [{ id: undefined, event_id: null, description: "", quantity: 1, unit_price: 0 }]
+      : [{ id: undefined, event_id: null, description: "", quantity: 1, unit_price: 0, unit_type: 'quantity' as const }]
     return {
       business_id: prefillJob.business_id as (typeof BUSINESS_IDS)[number],
       client_id: prefillJob.client_id ?? "",
@@ -115,7 +117,7 @@ function buildDefaults(invoice?: Invoice | null, prefillJob?: UnbilledJob | null
     notes: "",
     terms: DEFAULT_TERMS,
     email_address: "",
-    line_items: [{ id: undefined, event_id: null, description: "", quantity: 1, unit_price: 0 }],
+    line_items: [{ id: undefined, event_id: null, description: "", quantity: 1, unit_price: 0, unit_type: 'quantity' as const }],
   }
 }
 
@@ -395,7 +397,7 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
 
             <button
               type="button"
-              onClick={() => append({ id: undefined, event_id: null, description: "", quantity: 1, unit_price: 0 })}
+              onClick={() => append({ id: undefined, event_id: null, description: "", quantity: 1, unit_price: 0, unit_type: 'quantity' })}
               className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
             >
               <Plus size={14} />

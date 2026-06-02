@@ -374,6 +374,7 @@ export type Database = {
           quantity: number
           sort_order: number
           unit_price: number
+          unit_type: 'hourly' | 'quantity' | 'flat'
           user_id: string
         }
         Insert: {
@@ -386,6 +387,7 @@ export type Database = {
           quantity?: number
           sort_order?: number
           unit_price?: number
+          unit_type?: 'hourly' | 'quantity' | 'flat'
           user_id: string
         }
         Update: {
@@ -398,6 +400,7 @@ export type Database = {
           quantity?: number
           sort_order?: number
           unit_price?: number
+          unit_type?: 'hourly' | 'quantity' | 'flat'
           user_id?: string
         }
         Relationships: [
@@ -921,6 +924,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      line_item_templates: {
+        Row: {
+          id: string
+          user_id: string
+          description: string
+          default_unit_price: number
+          unit_type: 'hourly' | 'quantity' | 'flat'
+          business_id: string | null
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          description: string
+          default_unit_price?: number
+          unit_type?: 'hourly' | 'quantity' | 'flat'
+          business_id?: string | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          description?: string
+          default_unit_price?: number
+          unit_type?: 'hourly' | 'quantity' | 'flat'
+          business_id?: string | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       tasks: {
         Row: {

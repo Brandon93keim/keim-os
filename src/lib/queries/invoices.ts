@@ -41,6 +41,7 @@ export interface InvoiceLineItem {
   description: string
   quantity: number
   unit_price: number
+  unit_type: 'hourly' | 'quantity' | 'flat'
   amount: number
   sort_order: number
   created_at: string
@@ -189,6 +190,7 @@ export async function createInvoice(values: InvoiceFormValues): Promise<InvoiceR
     description: item.description,
     quantity: item.quantity,
     unit_price: item.unit_price,
+    unit_type: item.unit_type,
     amount: Math.round(item.quantity * item.unit_price * 100) / 100,
     sort_order: i,
   }))
@@ -240,6 +242,7 @@ export async function updateInvoice(id: string, values: InvoiceFormValues): Prom
     description: item.description,
     quantity: item.quantity,
     unit_price: item.unit_price,
+    unit_type: item.unit_type,
     amount: Math.round(item.quantity * item.unit_price * 100) / 100,
     sort_order: i,
   }))
