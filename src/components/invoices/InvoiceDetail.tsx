@@ -287,7 +287,8 @@ export function InvoiceDetail({ invoiceId }: Props) {
                 <div className="text-sm font-medium">{item.description}</div>
                 <div className="flex items-center justify-between mt-1">
                   <div className="text-xs text-muted-foreground">
-                    {item.quantity} × ${item.unit_price.toFixed(2)}
+                    {item.unit_type === 'hourly' && `${item.quantity} hrs × $${item.unit_price.toFixed(2)}`}
+                    {item.unit_type === 'quantity' && `${item.quantity} × $${item.unit_price.toFixed(2)}`}
                   </div>
                   <div className="text-sm font-semibold tabular-nums">
                     ${item.amount.toFixed(2)}

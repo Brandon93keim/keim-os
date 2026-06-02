@@ -345,8 +345,12 @@ export default function InvoicePdfDocument({
           lineItems.map((item) => (
             <View key={item.id} style={s.tableRow}>
               <Text style={[s.tdText, s.tdDesc]}>{item.description}</Text>
-              <Text style={[s.tdText, s.tdQty]}>{item.quantity}</Text>
-              <Text style={[s.tdText, s.tdPrice]}>{fmt.format(item.unit_price)}</Text>
+              <Text style={[s.tdText, s.tdQty]}>
+                {item.unit_type === 'flat' ? '—' : item.unit_type === 'hourly' ? `${item.quantity} hrs` : String(item.quantity)}
+              </Text>
+              <Text style={[s.tdText, s.tdPrice]}>
+                {item.unit_type === 'flat' ? '—' : fmt.format(item.unit_price)}
+              </Text>
               <Text style={[s.tdText, s.tdTot]}>{fmt.format(item.amount)}</Text>
             </View>
           ))
