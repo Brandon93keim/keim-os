@@ -46,9 +46,31 @@ export async function listBillPaymentsForPeriod(periodStart: string, periodEnd: 
     .eq("user_id", userId)
     .gte("period_start", periodStart)
     .lte("period_start", periodEnd)
+    .order("paid_on", { ascending: false })
 
   if (error) throw error
   return (data ?? []) as unknown as BillPayment[]
+}
+
+export async function listLatestPaymentPerBill(): Promise<Record<string, { amount: number; period_start: string }>> {
+  const supabase = createClient()
+  const userId = await getUserId()
+
+  const { data, error } = await supabase
+    .from("bill_payments")
+    .select("bill_id, amount, period_start")
+    .eq("user_id", userId)
+    .order("period_start", { ascending: false })
+
+  if (error) throw error
+
+  const result: Record<string, { amount: number; period_start: string }> = {}
+  for (const row of (data ?? []) as Array<{ bill_id: string; amount: string | number; period_start: string }>) {
+    if (!result[row.bill_id]) {
+      result[row.bill_id] = { amount: Number(row.amount), period_start: row.period_start }
+    }
+  }
+  return result
 }
 
 export async function listRecentBillPayments(daysBack: number): Promise<BillPayment[]> {

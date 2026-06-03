@@ -6,6 +6,7 @@ import {
   listBills,
   listRecentBillPayments,
   listBillPaymentsForPeriod,
+  listLatestPaymentPerBill,
   createBill as createBillQuery,
   updateBill as updateBillQuery,
   setBillActive as setBillActiveQuery,
@@ -28,6 +29,20 @@ export function useRecentBillPayments(daysBack: number) {
   return useQuery({
     queryKey: ["bill-payments", daysBack],
     queryFn: () => listRecentBillPayments(daysBack),
+  })
+}
+
+export function useMonthBillPayments(monthStart: string, monthEnd: string) {
+  return useQuery({
+    queryKey: ["bill-payments", "period", monthStart],
+    queryFn: () => listBillPaymentsForPeriod(monthStart, monthEnd),
+  })
+}
+
+export function useLatestPaymentPerBill() {
+  return useQuery<Record<string, { amount: number; period_start: string }>>({
+    queryKey: ["latest-bill-payments"],
+    queryFn: listLatestPaymentPerBill,
   })
 }
 
@@ -156,6 +171,7 @@ export function useDeleteBill() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bills"] })
       queryClient.invalidateQueries({ queryKey: ["bill-payments"] })
+      queryClient.invalidateQueries({ queryKey: ["latest-bill-payments"] })
       queryClient.invalidateQueries({ queryKey: ["committed-outflows"] })
       queryClient.invalidateQueries({ queryKey: ["transactions"] })
       toast.success("Bill deleted")
@@ -173,6 +189,7 @@ export function useRecordBillPayment(ctx: RecordBillPaymentContext) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bills"] })
       queryClient.invalidateQueries({ queryKey: ["bill-payments"] })
+      queryClient.invalidateQueries({ queryKey: ["latest-bill-payments"] })
       queryClient.invalidateQueries({ queryKey: ["committed-outflows"] })
       queryClient.invalidateQueries({ queryKey: ["accounts"] })
       queryClient.invalidateQueries({ queryKey: ["transactions"] })

@@ -1,24 +1,26 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { ArrowLeft, Pencil, Plus } from "lucide-react"
+import { ArrowLeft, Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { format, parseISO, addDays } from "date-fns"
-import { useBills, useRecentBillPayments } from "@/lib/hooks/useBills"
+import { format, parseISO } from "date-fns"
+import {
+  useBills,
+  useCommittedOutflowsThisMonth,
+  useMonthBillPayments,
+  useLatestPaymentPerBill,
+} from "@/lib/hooks/useBills"
 import { getBusinessById } from "@/lib/constants"
 import { formatCurrency, getMonthBounds } from "@/lib/finance/format"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MarkPaidDialog } from "./MarkPaidDialog"
 import { BillFormSheet } from "./BillFormSheet"
+import { MoneyCube } from "./MoneyCube"
 import type { BillWithNextDue } from "@/lib/finance/types"
 import type { RecordBillPaymentContext } from "@/lib/queries/bills"
 
 function getToday(): string {
   return format(new Date(), "yyyy-MM-dd")
-}
-
-function get60DayCutoff(today: string): string {
-  return format(addDays(parseISO(today), 60), "yyyy-MM-dd")
 }
 
 function billToCtx(bill: BillWithNextDue): RecordBillPaymentContext {
@@ -34,141 +36,89 @@ function billToCtx(bill: BillWithNextDue): RecordBillPaymentContext {
   }
 }
 
-function SectionHeader({ label }: { label: string }) {
+function GridSkeleton() {
   return (
-    <p className="px-4 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-      {label}
-    </p>
-  )
-}
-
-function RowSkeleton() {
-  return (
-    <div className="flex items-center gap-3 px-4 py-3.5">
-      <Skeleton className="h-2 w-2 rounded-full shrink-0" />
-      <div className="flex-1 space-y-1.5">
-        <Skeleton className="h-4 w-36" />
-        <Skeleton className="h-3 w-24" />
-      </div>
-      <Skeleton className="h-4 w-16" />
-    </div>
-  )
-}
-
-function BillRow({
-  bill,
-  subtitle,
-  onTap,
-  onEdit,
-}: {
-  bill: BillWithNextDue
-  subtitle: React.ReactNode
-  onTap: () => void
-  onEdit: () => void
-}) {
-  const business = bill.business_id ? getBusinessById(bill.business_id) : null
-
-  return (
-    <div className="flex items-center">
-      <button
-        type="button"
-        onClick={onTap}
-        className="flex flex-1 items-center gap-3 px-4 py-3.5 text-left min-w-0 transition-colors active:bg-muted/60 hover:bg-muted/40"
-      >
-        {business ? (
-          <span
-            className="h-2 w-2 shrink-0 rounded-full"
-            style={{ backgroundColor: business.color }}
-          />
-        ) : (
-          <span className="h-2 w-2 shrink-0" />
-        )}
-
-        <div className="flex-1 min-w-0">
-          <p className="font-medium truncate">{bill.name}</p>
-          <div className="text-xs text-muted-foreground mt-0.5">{subtitle}</div>
-        </div>
-
-        <div className="flex flex-col items-end gap-0.5 shrink-0">
-          <p className="text-sm font-medium tabular-nums">
-            {bill.default_amount != null
-              ? formatCurrency(Number(bill.default_amount))
-              : "Variable"}
-          </p>
-          <span className="text-xs text-primary">Mark paid</span>
-        </div>
-      </button>
-
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          onEdit()
-        }}
-        aria-label={`Edit ${bill.name}`}
-        className="flex h-12 w-10 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground transition-colors pr-3"
-      >
-        <Pencil size={16} />
-      </button>
+    <div className="grid grid-cols-2 gap-2">
+      {[...Array(4)].map((_, i) => (
+        <Skeleton key={i} className="h-20 rounded-xl" />
+      ))}
     </div>
   )
 }
 
 export function BillList() {
   const router = useRouter()
+  const today = getToday()
+  const { monthStart, monthEnd } = getMonthBounds(today)
+
   const { data: bills = [], isLoading: billsLoading } = useBills()
-  const { data: recentPayments = [], isLoading: paymentsLoading } = useRecentBillPayments(30)
+  const { data: outflows, isLoading: outflowsLoading } = useCommittedOutflowsThisMonth()
+  const { data: monthPayments = [], isLoading: paymentsLoading } = useMonthBillPayments(monthStart, monthEnd)
+  const { data: latestPayments = {}, isLoading: latestLoading } = useLatestPaymentPerBill()
+
   const [activeCtx, setActiveCtx] = useState<RecordBillPaymentContext | null>(null)
   const [formSheetOpen, setFormSheetOpen] = useState(false)
   const [editingBill, setEditingBill] = useState<BillWithNextDue | undefined>(undefined)
 
-  const today = getToday()
-  const { monthStart, monthEnd } = getMonthBounds(today)
-  const cutoff60 = get60DayCutoff(today)
-
-  const billMap = useMemo(() => {
-    const m = new Map<string, BillWithNextDue>()
-    for (const b of bills) m.set(b.id, b)
+  // paid_on DESC order from query, so first encountered per bill is the most recent
+  const paidMap = useMemo(() => {
+    const m = new Map<string, { amount: number; paid_on: string }>()
+    for (const p of monthPayments) {
+      if (!m.has(p.bill_id)) {
+        m.set(p.bill_id, { amount: Number(p.amount), paid_on: p.paid_on })
+      }
+    }
     return m
-  }, [bills])
+  }, [monthPayments])
 
-  const { overdue, dueThisMonth, upcoming } = useMemo(() => {
-    const overdue: BillWithNextDue[] = []
-    const dueThisMonth: BillWithNextDue[] = []
-    const upcoming: BillWithNextDue[] = []
+  const { unpaid, paid } = useMemo(() => {
+    const unpaid: BillWithNextDue[] = []
+    const paid: BillWithNextDue[] = []
 
     for (const bill of bills) {
-      const d = bill.next_due_date
-      if (!d) continue
-      if (d < today) {
-        overdue.push(bill)
-      } else if (d <= monthEnd) {
-        dueThisMonth.push(bill)
-      } else if (d <= cutoff60) {
-        upcoming.push(bill)
-      }
-    }
-    return { overdue, dueThisMonth, upcoming }
-  }, [bills, today, monthEnd, cutoff60])
-
-  const { fixedCount, fixedSum, variableCount } = useMemo(() => {
-    let fixedCount = 0
-    let fixedSum = 0
-    let variableCount = 0
-    for (const bill of bills) {
-      const d = bill.next_due_date
-      if (!d || d < monthStart || d > monthEnd) continue
-      if (bill.default_amount != null) {
-        fixedCount++
-        fixedSum += Number(bill.default_amount)
+      if (paidMap.has(bill.id)) {
+        paid.push(bill)
       } else {
-        variableCount++
+        const d = bill.next_due_date
+        if (d && d <= monthEnd) {
+          unpaid.push(bill)
+        }
       }
     }
-    return { fixedCount, fixedSum, variableCount }
-  }, [bills, monthStart, monthEnd])
 
-  const isLoading = billsLoading || paymentsLoading
+    // Overdue first (next_due_date < today), then by date ascending
+    unpaid.sort((a, b) => {
+      const aOver = a.next_due_date! < today
+      const bOver = b.next_due_date! < today
+      if (aOver !== bOver) return aOver ? -1 : 1
+      return a.next_due_date! < b.next_due_date! ? -1 : 1
+    })
+
+    return { unpaid, paid }
+  }, [bills, paidMap, monthEnd, today])
+
+  const unpaidTotal = useMemo(() => {
+    let sum = 0
+    for (const bill of unpaid) {
+      if (bill.default_amount != null) {
+        sum += Number(bill.default_amount)
+      } else {
+        const est = latestPayments[bill.id]
+        if (est) sum += est.amount
+      }
+    }
+    return sum
+  }, [unpaid, latestPayments])
+
+  const paidTotal = useMemo(() => {
+    let sum = 0
+    for (const bill of paid) {
+      sum += paidMap.get(bill.id)?.amount ?? 0
+    }
+    return sum
+  }, [paid, paidMap])
+
+  const isLoading = billsLoading || outflowsLoading || paymentsLoading || latestLoading
 
   function openCreate() {
     setEditingBill(undefined)
@@ -195,40 +145,36 @@ export function BillList() {
         <h1 className="text-xl font-semibold">Bills</h1>
       </div>
 
-      {/* Summary band */}
-      <div className="bg-muted/40 border-b border-border px-4 py-4">
-        <p className="text-xs text-muted-foreground uppercase tracking-wider text-center mb-3">
-          Due this month
-        </p>
-        <div className="flex justify-around">
-          <div className="text-center">
-            <p className="text-xs text-muted-foreground mb-0.5">Bills</p>
-            <p className="text-base font-semibold tabular-nums">
-              {isLoading ? <Skeleton className="h-5 w-8 mx-auto" /> : fixedCount}
+      {/* Hero */}
+      <div className="px-3 pt-3 pb-1">
+        {outflowsLoading ? (
+          <Skeleton className="h-[5.5rem] rounded-xl" />
+        ) : (
+          <div className="w-full rounded-xl bg-muted/60 px-4 py-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">This month</p>
+            <p className="text-3xl font-bold tabular-nums mb-1">
+              {formatCurrency(outflows?.total ?? 0)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {formatCurrency(outflows?.paid ?? 0)} paid · {formatCurrency(outflows?.remaining ?? 0)} remaining
+              {(outflows?.variableCount ?? 0) > 0 && ` · +${outflows!.variableCount} variable`}
             </p>
           </div>
-          <div className="w-px bg-border" />
-          <div className="text-center">
-            <p className="text-xs text-muted-foreground mb-0.5">Total</p>
-            <p className="text-base font-semibold tabular-nums">
-              {isLoading ? <Skeleton className="h-5 w-20" /> : formatCurrency(fixedSum)}
-            </p>
-          </div>
-        </div>
-        {!isLoading && variableCount > 0 && (
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            + {variableCount} variable
-          </p>
         )}
       </div>
 
       {/* Content */}
       <div className="flex-1 pb-6">
         {isLoading ? (
-          <div className="mt-4 divide-y divide-border border-y border-border">
-            {[...Array(3)].map((_, i) => (
-              <RowSkeleton key={i} />
-            ))}
+          <div className="px-3 mt-4 space-y-6">
+            <div>
+              <Skeleton className="h-4 w-16 mb-2" />
+              <GridSkeleton />
+            </div>
+            <div>
+              <Skeleton className="h-4 w-12 mb-2" />
+              <GridSkeleton />
+            </div>
           </div>
         ) : bills.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 px-4 pt-20 text-center">
@@ -242,106 +188,104 @@ export function BillList() {
             </button>
           </div>
         ) : (
-          <>
-            {/* Overdue */}
-            {overdue.length > 0 && (
-              <div className="mt-4">
-                <SectionHeader label="Overdue" />
-                <div className="divide-y divide-border border-y border-border">
-                  {overdue.map((bill) => (
-                    <BillRow
-                      key={bill.id}
-                      bill={bill}
-                      subtitle={
+          <div className="px-3 mt-4 space-y-6">
+            {/* Unpaid */}
+            <div>
+              <div className="flex items-baseline justify-between mb-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Unpaid</p>
+                {unpaid.length > 0 && (
+                  <p className="text-xs font-semibold tabular-nums text-red-500/80 dark:text-red-400/80">
+                    {formatCurrency(unpaidTotal)}
+                  </p>
+                )}
+              </div>
+              {unpaid.length === 0 ? (
+                <p className="py-2 text-sm text-muted-foreground">All caught up!</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {unpaid.map((bill) => {
+                    const business = bill.business_id ? getBusinessById(bill.business_id) : null
+                    const isOverdue = bill.next_due_date! < today
+                    const pastDuePrefix = isOverdue ? "Past due · " : ""
+                    const dueLabel = `Due ${format(parseISO(bill.next_due_date!), "MMM d")}`
+
+                    let value: React.ReactNode
+                    let sublabel: string
+
+                    if (bill.default_amount != null) {
+                      value = (
                         <span className="text-red-500 dark:text-red-400">
-                          Was due {format(parseISO(bill.next_due_date!), "MMM d")}
+                          {formatCurrency(Number(bill.default_amount))}
                         </span>
+                      )
+                      sublabel = pastDuePrefix + dueLabel
+                    } else {
+                      const est = latestPayments[bill.id]
+                      if (est) {
+                        value = (
+                          <span className="text-red-500 dark:text-red-400">
+                            {formatCurrency(est.amount)}
+                          </span>
+                        )
+                        sublabel = `${pastDuePrefix}est · last paid ${format(parseISO(est.period_start), "MMM d")}`
+                      } else {
+                        value = <span className="text-muted-foreground">TBD</span>
+                        sublabel = pastDuePrefix + dueLabel
                       }
-                      onTap={() => setActiveCtx(billToCtx(bill))}
-                      onEdit={() => openEdit(bill)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+                    }
 
-            {/* Due this month */}
-            {dueThisMonth.length > 0 && (
-              <div className="mt-6">
-                <SectionHeader label="Due this month" />
-                <div className="divide-y divide-border border-y border-border">
-                  {dueThisMonth.map((bill) => (
-                    <BillRow
-                      key={bill.id}
-                      bill={bill}
-                      subtitle={format(parseISO(bill.next_due_date!), "MMM d")}
-                      onTap={() => setActiveCtx(billToCtx(bill))}
-                      onEdit={() => openEdit(bill)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Upcoming */}
-            {upcoming.length > 0 && (
-              <div className="mt-6">
-                <SectionHeader label="Upcoming" />
-                <div className="divide-y divide-border border-y border-border">
-                  {upcoming.map((bill) => (
-                    <BillRow
-                      key={bill.id}
-                      bill={bill}
-                      subtitle={format(parseISO(bill.next_due_date!), "MMM d")}
-                      onTap={() => setActiveCtx(billToCtx(bill))}
-                      onEdit={() => openEdit(bill)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Recently paid (30 days) */}
-            {recentPayments.length > 0 && (
-              <div className="mt-6">
-                <SectionHeader label="Recently paid (30 days)" />
-                <div className="divide-y divide-border border-y border-border">
-                  {recentPayments.map((payment) => {
-                    const bill = billMap.get(payment.bill_id)
-                    const business = bill?.business_id
-                      ? getBusinessById(bill.business_id)
-                      : null
                     return (
-                      <div
-                        key={payment.id}
-                        className="flex items-center gap-3 px-4 py-3.5"
-                      >
-                        {business ? (
-                          <span
-                            className="h-2 w-2 shrink-0 rounded-full"
-                            style={{ backgroundColor: business.color }}
-                          />
-                        ) : (
-                          <span className="h-2 w-2 shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">
-                            {bill?.name ?? "Unknown bill"}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Paid {format(parseISO(payment.paid_on), "MMM d")}
-                          </p>
-                        </div>
-                        <p className="text-sm font-medium tabular-nums text-muted-foreground shrink-0">
-                          {formatCurrency(Number(payment.amount))}
-                        </p>
-                      </div>
+                      <MoneyCube
+                        key={bill.id}
+                        label={bill.name}
+                        value={value}
+                        sublabel={sublabel}
+                        colorDot={business?.color}
+                        onClick={() => setActiveCtx(billToCtx(bill))}
+                      />
                     )
                   })}
                 </div>
+              )}
+            </div>
+
+            {/* Paid */}
+            <div>
+              <div className="flex items-baseline justify-between mb-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Paid</p>
+                {paid.length > 0 && (
+                  <p className="text-xs font-semibold tabular-nums text-green-600 dark:text-green-400">
+                    {formatCurrency(paidTotal)}
+                  </p>
+                )}
               </div>
-            )}
-          </>
+              {paid.length === 0 ? (
+                <p className="py-2 text-sm text-muted-foreground">Nothing paid yet this month.</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {paid.map((bill) => {
+                    const business = bill.business_id ? getBusinessById(bill.business_id) : null
+                    const payment = paidMap.get(bill.id)!
+                    return (
+                      <MoneyCube
+                        key={bill.id}
+                        label={bill.name}
+                        value={
+                          <span className="text-green-600 dark:text-green-400">
+                            {formatCurrency(payment.amount)}
+                          </span>
+                        }
+                        sublabel={`Paid ${format(parseISO(payment.paid_on), "MMM d")}`}
+                        colorDot={business?.color}
+                        className="ring-1 ring-green-500/40"
+                        onClick={() => openEdit(bill)}
+                      />
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
 
