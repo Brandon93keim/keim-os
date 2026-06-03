@@ -100,7 +100,7 @@ export function AllocationRuleEditor() {
       <div className="sticky top-0 z-10 bg-background border-b border-border px-4 pt-4 pb-3 flex items-center gap-3">
         <button
           type="button"
-          onClick={() => router.push("/money")}
+          onClick={() => router.push("/settings")}
           className="flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors -ml-1"
           aria-label="Back"
         >
