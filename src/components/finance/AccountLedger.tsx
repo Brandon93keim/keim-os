@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, Plus, Pencil } from "lucide-react"
+import { Plus, Pencil } from "lucide-react"
 import { format, isToday, isYesterday, parseISO, isSameYear } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useAllAccounts } from "@/lib/hooks/useAccounts"
@@ -10,6 +9,7 @@ import { useAccountTransactions } from "@/lib/hooks/useTransactions"
 import { formatCurrency } from "@/lib/finance/format"
 import { getBusinessById } from "@/lib/constants"
 import { Skeleton } from "@/components/ui/skeleton"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { AccountFormSheet } from "./AccountFormSheet"
 import { TransactionFormSheet } from "./TransactionFormSheet"
 import type { AccountWithBalance, TransactionWithRelations } from "@/lib/finance/types"
@@ -166,7 +166,6 @@ function RowSkeleton() {
 }
 
 export function AccountLedger({ id }: { id: string }) {
-  const router = useRouter()
   const { data: allAccounts = [], isLoading: accountsLoading } = useAllAccounts()
   const { data: transactions = [], isLoading: txLoading, error } = useAccountTransactions(id)
 
@@ -205,33 +204,21 @@ export function AccountLedger({ id }: { id: string }) {
 
   return (
     <div className="flex flex-col min-h-full">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 pt-4 pb-3 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => router.push("/money")}
-          className="flex items-center justify-center h-8 w-8 rounded-full hover:bg-muted transition-colors -ml-1 shrink-0"
-          aria-label="Back"
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <h1 className="text-xl font-semibold flex-1 truncate min-w-0">
-          {accountsLoading ? (
-            <Skeleton className="h-6 w-40" />
-          ) : (
-            account?.name ?? "Account"
-          )}
-        </h1>
-        <button
-          type="button"
-          onClick={() => setEditSheetOpen(true)}
-          className="flex items-center gap-1.5 text-sm font-medium text-primary hover:opacity-80 transition-opacity shrink-0"
-          aria-label="Edit account"
-        >
-          <Pencil size={15} />
-          Edit
-        </button>
-      </div>
+      <PageHeader
+        title={accountsLoading ? <Skeleton className="h-6 w-40" /> : (account?.name ?? "Account")}
+        backHref="/money"
+        right={
+          <button
+            type="button"
+            onClick={() => setEditSheetOpen(true)}
+            className="flex items-center gap-1.5 text-sm font-medium text-primary hover:opacity-80 transition-opacity shrink-0"
+            aria-label="Edit account"
+          >
+            <Pencil size={15} />
+            Edit
+          </button>
+        }
+      />
 
       {/* Account summary card */}
       <div className="bg-muted/40 border-b border-border px-4 py-4">

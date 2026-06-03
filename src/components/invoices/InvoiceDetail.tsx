@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { format, parseISO } from "date-fns"
 import {
-  ArrowLeft, ChevronDown, Download, Edit2, ExternalLink, MoreVertical,
+  ChevronDown, Download, Edit2, ExternalLink, MoreVertical,
   Send, Trash2, User, X,
 } from "lucide-react"
 import { useInvoice, useMarkInvoiceSent, useMarkInvoiceCancelled, useMarkInvoiceVoid, useDeleteInvoice, useDeletePayment } from "@/lib/hooks/useInvoices"
@@ -34,6 +34,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge"
 import { InvoiceFormSheet } from "./InvoiceFormSheet"
 import { RecordPaymentDialog } from "./RecordPaymentDialog"
@@ -158,69 +159,64 @@ export function InvoiceDetail({ invoiceId }: Props) {
 
   return (
     <>
-      {/* Sticky header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border">
-        <div className="flex items-center gap-3 px-4 pt-4 pb-3">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div className="flex-1 min-w-0">
-            <div className="font-mono text-sm font-semibold truncate">
-              {invoice.invoice_number ?? "Draft"}
-            </div>
-          </div>
-          <InvoiceStatusBadge status={effectiveStatus} />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
-              >
-                <MoreVertical size={20} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {canEdit && (
-                <DropdownMenuItem onClick={() => setEditOpen(true)}>
-                  <Edit2 size={14} className="mr-2" />
-                  Edit
+      <PageHeader
+        title={
+          <span className="font-mono text-sm font-semibold truncate">
+            {invoice.invoice_number ?? "Draft"}
+          </span>
+        }
+        backHref="/invoices"
+        right={
+          <div className="flex items-center gap-2 shrink-0">
+            <InvoiceStatusBadge status={effectiveStatus} />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+                >
+                  <MoreVertical size={20} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {canEdit && (
+                  <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                    <Edit2 size={14} className="mr-2" />
+                    Edit
+                  </DropdownMenuItem>
+                )}
+                {!["cancelled", "void", "paid"].includes(invoice.status) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => markCancelled.mutate(invoiceId)}
+                      className="text-muted-foreground"
+                    >
+                      <X size={14} className="mr-2" />
+                      Mark as cancelled
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => markVoid.mutate(invoiceId)}
+                      className="text-muted-foreground"
+                    >
+                      <ChevronDown size={14} className="mr-2" />
+                      Mark as void
+                    </DropdownMenuItem>
+                  </>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => setDeleteConfirmOpen(true)}
+                >
+                  <Trash2 size={14} className="mr-2" />
+                  Delete invoice
                 </DropdownMenuItem>
-              )}
-              {!["cancelled", "void", "paid"].includes(invoice.status) && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => markCancelled.mutate(invoiceId)}
-                    className="text-muted-foreground"
-                  >
-                    <X size={14} className="mr-2" />
-                    Mark as cancelled
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => markVoid.mutate(invoiceId)}
-                    className="text-muted-foreground"
-                  >
-                    <ChevronDown size={14} className="mr-2" />
-                    Mark as void
-                  </DropdownMenuItem>
-                </>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => setDeleteConfirmOpen(true)}
-              >
-                <Trash2 size={14} className="mr-2" />
-                Delete invoice
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        }
+      />
 
       {/* Scrollable content */}
       <div className="px-4 py-4 space-y-4 pb-32">

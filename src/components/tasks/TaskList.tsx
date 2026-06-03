@@ -8,6 +8,7 @@ import { getEffectiveTaskStatus } from "@/lib/taskStatus"
 import { getBusinessById } from "@/lib/constants"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { TaskFormSheet } from "./TaskFormSheet"
 
 type View = "open" | "done"
@@ -197,20 +198,20 @@ export function TaskList() {
 
   return (
     <>
-      {/* Sticky header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border">
-        <div className="flex items-center justify-between px-4 pt-4 pb-3">
-          <h1 className="text-2xl font-semibold">Tasks</h1>
-        </div>
-        <div className="px-4 pb-3">
-          <Tabs value={view} onValueChange={(v) => setView(v as View)}>
-            <TabsList className="w-full">
-              <TabsTrigger value="open" className="flex-1">Open</TabsTrigger>
-              <TabsTrigger value="done" className="flex-1">Done</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      </div>
+      <PageHeader
+        title="Tasks"
+        gearGutter
+        below={
+          <div className="px-4 pb-3">
+            <Tabs value={view} onValueChange={(v) => setView(v as View)}>
+              <TabsList className="w-full">
+                <TabsTrigger value="open" className="flex-1">Open</TabsTrigger>
+                <TabsTrigger value="done" className="flex-1">Done</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        }
+      />
 
       {/* Body */}
       <div className="pb-4">

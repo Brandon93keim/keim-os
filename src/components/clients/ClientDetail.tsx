@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
-  ArrowLeft,
   Mail,
   Phone,
   Building2,
@@ -33,6 +32,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { StatusBadge } from "./StatusBadge"
 import { ClientFormSheet } from "./ClientFormSheet"
 
@@ -117,24 +117,15 @@ export function ClientDetail({ id }: { id: string }) {
 
   return (
     <>
-      {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center gap-3 bg-background/95 backdrop-blur px-4 py-3 border-b border-border">
-        <Button variant="ghost" size="icon" asChild className="shrink-0 -ml-1">
-          <Link href="/clients">
-            <ArrowLeft size={20} />
-            <span className="sr-only">Back</span>
-          </Link>
-        </Button>
-        <h1 className="flex-1 font-semibold text-base truncate">{client.name}</h1>
-        <Button
-          variant="outline"
-          size="sm"
-          className="shrink-0"
-          onClick={() => setEditOpen(true)}
-        >
-          Edit
-        </Button>
-      </div>
+      <PageHeader
+        title={client.name}
+        backHref="/clients"
+        right={
+          <Button variant="outline" size="sm" className="shrink-0" onClick={() => setEditOpen(true)}>
+            Edit
+          </Button>
+        }
+      />
 
       <div className="p-4 space-y-3 pb-8">
         {/* Status & Businesses */}

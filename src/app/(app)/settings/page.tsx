@@ -2,6 +2,7 @@ import Link from "next/link"
 import { ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { UserMenu } from "@/components/layout/UserMenu"
+import { SettingsHeader } from "@/components/settings/SettingsHeader"
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -10,11 +11,9 @@ export default async function SettingsPage() {
   } = await supabase.auth.getUser()
 
   return (
-    <div className="p-4 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Manage your account</p>
-      </div>
+    <>
+      <SettingsHeader />
+      <div className="p-4 space-y-6">
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -44,5 +43,6 @@ export default async function SettingsPage() {
         </div>
       </section>
     </div>
+    </>
   )
 }

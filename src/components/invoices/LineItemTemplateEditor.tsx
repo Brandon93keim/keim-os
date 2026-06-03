@@ -1,8 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowLeft, Trash2 } from "lucide-react"
-import Link from "next/link"
+import { Trash2 } from "lucide-react"
 import {
   useAllLineItemTemplates,
   useDeleteLineItemTemplate,
@@ -19,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { LineItemTemplateSheet } from "./LineItemTemplateSheet"
 import type { LineItemTemplate } from "@/lib/queries/lineItemTemplates"
 
@@ -126,16 +126,7 @@ export function LineItemTemplateEditor() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 pt-4 pb-3 flex items-center gap-3">
-        <Link
-          href="/invoices"
-          className="flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors -ml-1"
-          aria-label="Back to invoices"
-        >
-          <ArrowLeft size={20} />
-        </Link>
-        <h1 className="text-xl font-semibold flex-1">Line Item Templates</h1>
-      </div>
+      <PageHeader title="Line Item Templates" backHref="/invoices" />
 
       <div className="flex-1 pb-6">
         {isLoading ? (

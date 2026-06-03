@@ -1,8 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, ArrowLeft, X } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { Plus, X } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { format, isToday, isYesterday, parseISO, isSameYear } from "date-fns"
@@ -11,6 +10,7 @@ import { useTransactions, useDrillDownTransactions } from "@/lib/hooks/useTransa
 import { formatCurrency } from "@/lib/finance/format"
 import { getBusinessById } from "@/lib/constants"
 import { Skeleton } from "@/components/ui/skeleton"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { TransactionFormSheet } from "@/components/finance/TransactionFormSheet"
 import type { TransactionWithRelations } from "@/lib/finance/types"
 
@@ -143,7 +143,6 @@ function RowSkeleton() {
 }
 
 export default function TransactionsPage() {
-  const router = useRouter()
   const searchParams = useSearchParams()
 
   const bizParam = searchParams.get("business")
@@ -191,29 +190,19 @@ export default function TransactionsPage() {
 
   return (
     <div className="flex flex-col min-h-full">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 pt-4 pb-3 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="flex items-center justify-center h-8 w-8 rounded-full hover:bg-muted transition-colors -ml-1"
-          aria-label="Back"
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <h1 className="text-xl font-semibold flex-1 min-w-0 truncate">
-          {isDrillDown ? drillBusinessName : "Transactions"}
-        </h1>
-        {isDrillDown && (
+      <PageHeader
+        title={isDrillDown ? drillBusinessName : "Transactions"}
+        backHref="/money"
+        right={isDrillDown ? (
           <Link
             href="/money/transactions"
-            className="flex items-center justify-center h-8 w-8 rounded-full hover:bg-muted transition-colors"
+            className="flex items-center justify-center h-8 w-8 rounded-full hover:bg-muted transition-colors shrink-0"
             aria-label="Clear filter"
           >
             <X size={16} />
           </Link>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       {/* Summary band */}
       <div className="bg-muted/40 border-b border-border px-4 py-4">

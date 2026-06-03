@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { ArrowLeft, Plus } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { Plus } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import {
   useBills,
@@ -13,6 +12,7 @@ import {
 import { getBusinessById } from "@/lib/constants"
 import { formatCurrency, getMonthBounds } from "@/lib/finance/format"
 import { Skeleton } from "@/components/ui/skeleton"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { MarkPaidDialog } from "./MarkPaidDialog"
 import { BillFormSheet } from "./BillFormSheet"
 import { MoneyCube } from "./MoneyCube"
@@ -47,7 +47,6 @@ function GridSkeleton() {
 }
 
 export function BillList() {
-  const router = useRouter()
   const today = getToday()
   const { monthStart, monthEnd } = getMonthBounds(today)
 
@@ -113,18 +112,7 @@ export function BillList() {
 
   return (
     <div className="flex flex-col min-h-full">
-      {/* Sticky header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 pt-4 pb-3 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="flex items-center justify-center h-8 w-8 rounded-full hover:bg-muted transition-colors -ml-1"
-          aria-label="Back"
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <h1 className="text-xl font-semibold">Bills</h1>
-      </div>
+      <PageHeader title="Bills" backHref="/money" />
 
       {/* Hero */}
       <div className="px-3 pt-3 pb-1">

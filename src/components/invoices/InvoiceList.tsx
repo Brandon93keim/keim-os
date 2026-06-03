@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { InvoiceCard } from "./InvoiceCard"
 import { InvoiceFormSheet } from "./InvoiceFormSheet"
 import { UnbilledJobsList } from "./UnbilledJobsList"
@@ -142,10 +143,10 @@ export function InvoiceList() {
 
   return (
     <>
-      {/* Sticky header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border">
-        <div className="flex items-center justify-between px-4 pt-4 pb-3">
-          <h1 className="text-2xl font-semibold">Invoices</h1>
+      <PageHeader
+        title="Invoices"
+        gearGutter
+        right={
           <div className="flex items-center gap-3">
             <Link
               href="/invoices/templates"
@@ -158,64 +159,67 @@ export function InvoiceList() {
               New
             </Button>
           </div>
-        </div>
+        }
+        below={
+          <>
+            {/* Search — hidden on Unbilled tab */}
+            {!isUnbilledTab && (
+              <div className="px-4 pb-3">
+                <div className="relative">
+                  <Search
+                    size={16}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+                  />
+                  <Input
+                    placeholder="Search number, client, business…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+            )}
 
-        {/* Search — hidden on Unbilled tab */}
-        {!isUnbilledTab && (
-          <div className="px-4 pb-3">
-            <div className="relative">
-              <Search
-                size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-              />
-              <Input
-                placeholder="Search number, client, business…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-                autoComplete="off"
-              />
+            {/* Filters row */}
+            <div className="px-4 pb-3 flex gap-2">
+              <Tabs
+                value={statusFilter}
+                onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+                className="flex-1 min-w-0"
+              >
+                <div className="overflow-x-auto">
+                  <TabsList className="min-w-full w-max">
+                    <TabsTrigger value="all">All</TabsTrigger>
+                    <TabsTrigger value="unbilled">
+                      {unbilledCount > 0 ? `Unbilled · ${unbilledCount}` : "Unbilled"}
+                    </TabsTrigger>
+                    <TabsTrigger value="draft">Draft</TabsTrigger>
+                    <TabsTrigger value="sent">Sent</TabsTrigger>
+                    <TabsTrigger value="paid">Paid</TabsTrigger>
+                    <TabsTrigger value="overdue">Overdue</TabsTrigger>
+                  </TabsList>
+                </div>
+              </Tabs>
+
+              {/* Sort — hidden on Unbilled tab */}
+              {!isUnbilledTab && (
+                <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+                  <SelectTrigger className="w-[120px] shrink-0 h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="issue_date">Issue date</SelectItem>
+                    <SelectItem value="due_date">Due date</SelectItem>
+                    <SelectItem value="amount">Amount</SelectItem>
+                    <SelectItem value="status">Status</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
-          </div>
-        )}
-
-        {/* Filters row */}
-        <div className="px-4 pb-3 flex gap-2">
-          <Tabs
-            value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as StatusFilter)}
-            className="flex-1 min-w-0"
-          >
-            <div className="overflow-x-auto">
-              <TabsList className="min-w-full w-max">
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="unbilled">
-                  {unbilledCount > 0 ? `Unbilled · ${unbilledCount}` : "Unbilled"}
-                </TabsTrigger>
-                <TabsTrigger value="draft">Draft</TabsTrigger>
-                <TabsTrigger value="sent">Sent</TabsTrigger>
-                <TabsTrigger value="paid">Paid</TabsTrigger>
-                <TabsTrigger value="overdue">Overdue</TabsTrigger>
-              </TabsList>
-            </div>
-          </Tabs>
-
-          {/* Sort — hidden on Unbilled tab */}
-          {!isUnbilledTab && (
-            <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-              <SelectTrigger className="w-[120px] shrink-0 h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="issue_date">Issue date</SelectItem>
-                <SelectItem value="due_date">Due date</SelectItem>
-                <SelectItem value="amount">Amount</SelectItem>
-                <SelectItem value="status">Status</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Body */}
       <div className="py-3">

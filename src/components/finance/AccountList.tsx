@@ -11,6 +11,7 @@ import { useCommittedOutflowsThisMonth } from "@/lib/hooks/useBills"
 import { formatCurrency } from "@/lib/finance/format"
 import { getBusinessById } from "@/lib/constants"
 import { Skeleton } from "@/components/ui/skeleton"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { AccountFormSheet } from "./AccountFormSheet"
 import { MoneyCube } from "./MoneyCube"
 import type { AccountWithBalance } from "@/lib/finance/types"
@@ -98,10 +99,7 @@ export function AccountList() {
 
   return (
     <div className="flex flex-col min-h-full">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 pt-4 pb-3">
-        <h1 className="text-xl font-semibold">Money</h1>
-      </div>
+      <PageHeader title="Money" gearGutter />
 
       {error && (
         <div className="px-4 py-8 text-center text-sm text-muted-foreground">

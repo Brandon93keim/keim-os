@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { useBusinessPnL, type BusinessPnLRow } from "@/lib/hooks/useTransactions"
 import { formatCurrency } from "@/lib/finance/format"
 import { Skeleton } from "@/components/ui/skeleton"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { DateRangePicker } from "./DateRangePicker"
 
 type RangeKey = "MTD" | "YTD" | "90d" | "12mo" | "Custom"
@@ -189,10 +190,7 @@ export function BusinessPnLReport() {
 
   return (
     <div className="flex flex-col min-h-full">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 pt-4 pb-3">
-        <h1 className="text-xl font-semibold">Reports</h1>
-      </div>
+      <PageHeader title="Reports" backHref="/money" />
 
       {/* Chip row + inline date picker */}
       <div className="border-b border-border">

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { ClientCard } from "./ClientCard"
 import { ClientFormSheet } from "./ClientFormSheet"
 import type { Client } from "@/lib/queries/clients"
@@ -93,60 +94,59 @@ export function ClientList() {
 
   return (
     <>
-      {/* Sticky header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border">
-        <div className="flex items-center justify-between px-4 pt-4 pb-3">
-          <h1 className="text-2xl font-semibold">Clients</h1>
-          <Button
-            size="sm"
-            className="gap-1.5 h-9"
-            onClick={() => setCreateOpen(true)}
-          >
+      <PageHeader
+        title="Clients"
+        gearGutter
+        right={
+          <Button size="sm" className="gap-1.5 h-9" onClick={() => setCreateOpen(true)}>
             <Plus size={16} />
             New
           </Button>
-        </div>
+        }
+        below={
+          <>
+            {/* Search */}
+            <div className="px-4 pb-3">
+              <div className="relative">
+                <Search
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+                />
+                <Input
+                  placeholder="Search name, company, email…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                  autoComplete="off"
+                />
+              </div>
+            </div>
 
-        {/* Search */}
-        <div className="px-4 pb-3">
-          <div className="relative">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-            />
-            <Input
-              placeholder="Search name, company, email…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-              autoComplete="off"
-            />
-          </div>
-        </div>
-
-        {/* Status tabs */}
-        <div className="px-4 pb-3">
-          <Tabs
-            value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as StatusFilter)}
-          >
-            <TabsList className="w-full">
-              <TabsTrigger value="all" className="flex-1">
-                All
-              </TabsTrigger>
-              <TabsTrigger value="prospect" className="flex-1">
-                Prospects
-              </TabsTrigger>
-              <TabsTrigger value="active" className="flex-1">
-                Active
-              </TabsTrigger>
-              <TabsTrigger value="archived" className="flex-1">
-                Archived
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      </div>
+            {/* Status tabs */}
+            <div className="px-4 pb-3">
+              <Tabs
+                value={statusFilter}
+                onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+              >
+                <TabsList className="w-full">
+                  <TabsTrigger value="all" className="flex-1">
+                    All
+                  </TabsTrigger>
+                  <TabsTrigger value="prospect" className="flex-1">
+                    Prospects
+                  </TabsTrigger>
+                  <TabsTrigger value="active" className="flex-1">
+                    Active
+                  </TabsTrigger>
+                  <TabsTrigger value="archived" className="flex-1">
+                    Archived
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </>
+        }
+      />
 
       {/* Body */}
       <div className="py-3">

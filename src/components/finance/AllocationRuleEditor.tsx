@@ -1,11 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { Pencil, Plus, Trash2 } from "lucide-react"
 import { useAllocationRules, useDeleteAllocationRule } from "@/lib/hooks/useAllocationRules"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/layout/PageHeader"
 import { AllocationRuleSheet } from "./AllocationRuleSheet"
 import type { AllocationRuleWithAccount } from "@/lib/finance/types"
 
@@ -69,7 +69,6 @@ function RuleRow({
 }
 
 export function AllocationRuleEditor() {
-  const router = useRouter()
   const { data: rules = [], isLoading } = useAllocationRules()
   const deleteRule = useDeleteAllocationRule()
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -96,26 +95,20 @@ export function AllocationRuleEditor() {
 
   return (
     <div className="flex flex-col min-h-full">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 pt-4 pb-3 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => router.push("/settings")}
-          className="flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors -ml-1"
-          aria-label="Back"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className="text-xl font-semibold flex-1">Income Allocation</h1>
-        <button
-          type="button"
-          onClick={openAdd}
-          className="flex items-center justify-center text-primary hover:opacity-80 transition-opacity"
-          aria-label="Add rule"
-        >
-          <Plus size={22} />
-        </button>
-      </div>
+      <PageHeader
+        title="Income Allocation"
+        backHref="/settings"
+        right={
+          <button
+            type="button"
+            onClick={openAdd}
+            className="flex items-center justify-center text-primary hover:opacity-80 transition-opacity"
+            aria-label="Add rule"
+          >
+            <Plus size={22} />
+          </button>
+        }
+      />
 
       {/* Summary band */}
       <div className="bg-muted/40 border-b border-border px-4 py-4">
