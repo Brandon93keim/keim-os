@@ -38,8 +38,8 @@ function billToCtx(bill: BillWithNextDue): RecordBillPaymentContext {
 
 function GridSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-2">
-      {[...Array(4)].map((_, i) => (
+    <div className="grid grid-cols-3 gap-2">
+      {[...Array(6)].map((_, i) => (
         <Skeleton key={i} className="h-20 rounded-xl" />
       ))}
     </div>
@@ -97,26 +97,7 @@ export function BillList() {
     return { unpaid, paid }
   }, [bills, paidMap, monthEnd, today])
 
-  const unpaidTotal = useMemo(() => {
-    let sum = 0
-    for (const bill of unpaid) {
-      if (bill.default_amount != null) {
-        sum += Number(bill.default_amount)
-      } else {
-        const est = latestPayments[bill.id]
-        if (est) sum += est.amount
-      }
-    }
-    return sum
-  }, [unpaid, latestPayments])
-
-  const paidTotal = useMemo(() => {
-    let sum = 0
-    for (const bill of paid) {
-      sum += paidMap.get(bill.id)?.amount ?? 0
-    }
-    return sum
-  }, [paid, paidMap])
+  const allBills = useMemo(() => [...unpaid, ...paid], [unpaid, paid])
 
   const isLoading = billsLoading || outflowsLoading || paymentsLoading || latestLoading
 
@@ -148,11 +129,11 @@ export function BillList() {
       {/* Hero */}
       <div className="px-3 pt-3 pb-1">
         {outflowsLoading ? (
-          <Skeleton className="h-[5.5rem] rounded-xl" />
+          <Skeleton className="h-[4.5rem] rounded-xl" />
         ) : (
-          <div className="w-full rounded-xl bg-muted/60 px-4 py-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">This month</p>
-            <p className="text-3xl font-bold tabular-nums mb-1">
+          <div className="w-full rounded-xl bg-muted/60 px-4 py-3 flex flex-col items-center text-center">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">This month</p>
+            <p className="text-2xl font-bold tabular-nums mb-0.5">
               {formatCurrency(outflows?.total ?? 0)}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -163,18 +144,20 @@ export function BillList() {
         )}
       </div>
 
+      {/* Counter line */}
+      {!isLoading && bills.length > 0 && (
+        <div className="px-3 pt-2 pb-0 text-center text-xs">
+          <span className="text-red-500 dark:text-red-400 font-medium">{unpaid.length} unpaid</span>
+          <span className="text-muted-foreground"> · </span>
+          <span className="text-green-600 dark:text-green-400 font-medium">{paid.length} paid</span>
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 pb-6">
         {isLoading ? (
-          <div className="px-3 mt-4 space-y-6">
-            <div>
-              <Skeleton className="h-4 w-16 mb-2" />
-              <GridSkeleton />
-            </div>
-            <div>
-              <Skeleton className="h-4 w-12 mb-2" />
-              <GridSkeleton />
-            </div>
+          <div className="px-3 mt-4">
+            <GridSkeleton />
           </div>
         ) : bills.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 px-4 pt-20 text-center">
@@ -188,102 +171,73 @@ export function BillList() {
             </button>
           </div>
         ) : (
-          <div className="px-3 mt-4 space-y-6">
-            {/* Unpaid */}
-            <div>
-              <div className="flex items-baseline justify-between mb-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Unpaid</p>
-                {unpaid.length > 0 && (
-                  <p className="text-xs font-semibold tabular-nums text-red-500/80 dark:text-red-400/80">
-                    {formatCurrency(unpaidTotal)}
-                  </p>
-                )}
-              </div>
-              {unpaid.length === 0 ? (
-                <p className="py-2 text-sm text-muted-foreground">All caught up!</p>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {unpaid.map((bill) => {
-                    const business = bill.business_id ? getBusinessById(bill.business_id) : null
-                    const isOverdue = bill.next_due_date! < today
-                    const pastDuePrefix = isOverdue ? "Past due · " : ""
-                    const dueLabel = `Due ${format(parseISO(bill.next_due_date!), "MMM d")}`
+          <div className="px-3 mt-3">
+            <div className="grid grid-cols-3 gap-2">
+              {allBills.map((bill) => {
+                const business = bill.business_id ? getBusinessById(bill.business_id) : null
+                const payment = paidMap.get(bill.id)
 
-                    let value: React.ReactNode
-                    let sublabel: string
-
-                    if (bill.default_amount != null) {
-                      value = (
-                        <span className="text-red-500 dark:text-red-400">
-                          {formatCurrency(Number(bill.default_amount))}
+                if (payment) {
+                  // Paid bill
+                  return (
+                    <MoneyCube
+                      key={bill.id}
+                      label={bill.name}
+                      value={
+                        <span className="text-green-600 dark:text-green-400">
+                          {formatCurrency(payment.amount)}
                         </span>
-                      )
-                      sublabel = pastDuePrefix + dueLabel
-                    } else {
-                      const est = latestPayments[bill.id]
-                      if (est) {
-                        value = (
-                          <span className="text-red-500 dark:text-red-400">
-                            {formatCurrency(est.amount)}
-                          </span>
-                        )
-                        sublabel = `${pastDuePrefix}est · last paid ${format(parseISO(est.period_start), "MMM d")}`
-                      } else {
-                        value = <span className="text-muted-foreground">TBD</span>
-                        sublabel = pastDuePrefix + dueLabel
                       }
-                    }
+                      sublabel={`Paid ${format(parseISO(payment.paid_on), "MMM d")}`}
+                      colorDot={business?.color}
+                      className="ring-1 ring-green-500/40"
+                      onClick={() => openEdit(bill)}
+                    />
+                  )
+                }
 
-                    return (
-                      <MoneyCube
-                        key={bill.id}
-                        label={bill.name}
-                        value={value}
-                        sublabel={sublabel}
-                        colorDot={business?.color}
-                        onClick={() => setActiveCtx(billToCtx(bill))}
-                      />
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+                // Unpaid bill
+                const isOverdue = bill.next_due_date! < today
+                const sublabelDate = isOverdue
+                  ? "Past due"
+                  : `Due ${format(parseISO(bill.next_due_date!), "MMM d")}`
 
-            {/* Paid */}
-            <div>
-              <div className="flex items-baseline justify-between mb-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Paid</p>
-                {paid.length > 0 && (
-                  <p className="text-xs font-semibold tabular-nums text-green-600 dark:text-green-400">
-                    {formatCurrency(paidTotal)}
-                  </p>
-                )}
-              </div>
-              {paid.length === 0 ? (
-                <p className="py-2 text-sm text-muted-foreground">Nothing paid yet this month.</p>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {paid.map((bill) => {
-                    const business = bill.business_id ? getBusinessById(bill.business_id) : null
-                    const payment = paidMap.get(bill.id)!
-                    return (
-                      <MoneyCube
-                        key={bill.id}
-                        label={bill.name}
-                        value={
-                          <span className="text-green-600 dark:text-green-400">
-                            {formatCurrency(payment.amount)}
-                          </span>
-                        }
-                        sublabel={`Paid ${format(parseISO(payment.paid_on), "MMM d")}`}
-                        colorDot={business?.color}
-                        className="ring-1 ring-green-500/40"
-                        onClick={() => openEdit(bill)}
-                      />
+                let value: React.ReactNode
+                let sublabel: string
+
+                if (bill.default_amount != null) {
+                  value = (
+                    <span className="text-red-500 dark:text-red-400">
+                      {formatCurrency(Number(bill.default_amount))}
+                    </span>
+                  )
+                  sublabel = sublabelDate
+                } else {
+                  const est = latestPayments[bill.id]
+                  if (est) {
+                    value = (
+                      <span className="text-red-500 dark:text-red-400">
+                        {formatCurrency(est.amount)}
+                      </span>
                     )
-                  })}
-                </div>
-              )}
+                    sublabel = sublabelDate
+                  } else {
+                    value = <span className="text-muted-foreground">TBD</span>
+                    sublabel = sublabelDate
+                  }
+                }
+
+                return (
+                  <MoneyCube
+                    key={bill.id}
+                    label={bill.name}
+                    value={value}
+                    sublabel={sublabel}
+                    colorDot={business?.color}
+                    onClick={() => setActiveCtx(billToCtx(bill))}
+                  />
+                )
+              })}
             </div>
           </div>
         )}
