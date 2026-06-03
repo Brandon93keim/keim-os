@@ -70,3 +70,19 @@ export async function deleteLineItemTemplate(id: string): Promise<void> {
     .eq("id", id)
   if (error) throw error
 }
+
+export async function listAllLineItemTemplates(): Promise<LineItemTemplate[]> {
+  const supabase = createClient()
+  const userId = await getUserId()
+
+  const { data, error } = await supabase
+    .from("line_item_templates")
+    .select("*")
+    .eq("user_id", userId)
+    .order("business_id", { ascending: true, nullsFirst: true })
+    .order("sort_order", { ascending: true })
+    .order("description", { ascending: true })
+
+  if (error) throw error
+  return (data ?? []) as LineItemTemplate[]
+}

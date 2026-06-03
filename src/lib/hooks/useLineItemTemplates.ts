@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
   listLineItemTemplates,
+  listAllLineItemTemplates,
   createLineItemTemplate,
   updateLineItemTemplate as updateLineItemTemplateQuery,
   deleteLineItemTemplate as deleteLineItemTemplateQuery,
@@ -15,6 +16,13 @@ export function useLineItemTemplates(businessId: string | null) {
   return useQuery({
     queryKey: ["lineItemTemplates", businessId],
     queryFn: () => listLineItemTemplates(businessId),
+  })
+}
+
+export function useAllLineItemTemplates() {
+  return useQuery({
+    queryKey: ["lineItemTemplates", "all"],
+    queryFn: listAllLineItemTemplates,
   })
 }
 

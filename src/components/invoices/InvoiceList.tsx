@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { Plus, Receipt, Search } from "lucide-react"
+import Link from "next/link"
 import { isPast, parseISO } from "date-fns"
 import { useInvoices, useUnbilledJobs } from "@/lib/hooks/useInvoices"
 import { getBusinessById } from "@/lib/constants"
@@ -145,10 +146,18 @@ export function InvoiceList() {
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border">
         <div className="flex items-center justify-between px-4 pt-4 pb-3">
           <h1 className="text-2xl font-semibold">Invoices</h1>
-          <Button size="sm" className="gap-1.5 h-9" onClick={() => setCreateOpen(true)}>
-            <Plus size={16} />
-            New
-          </Button>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/invoices/templates"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Templates
+            </Link>
+            <Button size="sm" className="gap-1.5 h-9" onClick={() => setCreateOpen(true)}>
+              <Plus size={16} />
+              New
+            </Button>
+          </div>
         </div>
 
         {/* Search — hidden on Unbilled tab */}
