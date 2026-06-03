@@ -47,20 +47,22 @@ function resolveRange(key: RangeKey, customRange?: DateRange): { dateFrom: strin
 
 function SummaryBandSkeleton() {
   return (
-    <div className="bg-muted/40 border-b border-border px-4 py-4">
-      <div className="mb-3 text-center">
-        <Skeleton className="h-3 w-8 mx-auto mb-1" />
-        <Skeleton className="h-9 w-32 mx-auto" />
-      </div>
-      <div className="flex justify-around">
-        <div className="text-center space-y-1">
-          <Skeleton className="h-3 w-12 mx-auto" />
-          <Skeleton className="h-5 w-20 mx-auto" />
+    <div className="px-3 pt-3">
+      <div className="rounded-xl bg-muted/60 px-4 py-4">
+        <div className="mb-3 text-center">
+          <Skeleton className="h-3 w-8 mx-auto mb-1" />
+          <Skeleton className="h-9 w-32 mx-auto" />
         </div>
-        <div className="w-px bg-border" />
-        <div className="text-center space-y-1">
-          <Skeleton className="h-3 w-12 mx-auto" />
-          <Skeleton className="h-5 w-20 mx-auto" />
+        <div className="flex justify-around">
+          <div className="text-center space-y-1">
+            <Skeleton className="h-3 w-12 mx-auto" />
+            <Skeleton className="h-5 w-20 mx-auto" />
+          </div>
+          <div className="w-px bg-border" />
+          <div className="text-center space-y-1">
+            <Skeleton className="h-3 w-12 mx-auto" />
+            <Skeleton className="h-5 w-20 mx-auto" />
+          </div>
         </div>
       </div>
     </div>
@@ -69,7 +71,7 @@ function SummaryBandSkeleton() {
 
 function RowSkeleton() {
   return (
-    <div className="flex items-center gap-3 px-4 py-3.5">
+    <div className="rounded-xl bg-muted/60 p-3 flex items-center gap-3">
       <Skeleton className="h-2.5 w-2.5 rounded-full shrink-0" />
       <div className="flex-1 space-y-1.5">
         <Skeleton className="h-4 w-36" />
@@ -109,24 +111,26 @@ function ChipRow({ selected, onSelect }: { selected: RangeKey; onSelect: (k: Ran
 
 function SummaryBand({ income, expense, net, label }: { income: number; expense: number; net: number; label: string }) {
   return (
-    <div className="bg-muted/40 border-b border-border px-4 py-4">
-      <div className="mb-3 text-center">
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">{label} Net</p>
-        <p className={cn("text-3xl font-bold tabular-nums", net < 0 ? "text-red-500" : "")}>
-          {formatCurrency(net)}
-        </p>
-      </div>
-      <div className="flex justify-around">
-        <div className="text-center">
-          <p className="text-xs text-muted-foreground mb-0.5">Income</p>
-          <p className="text-base font-semibold tabular-nums">{formatCurrency(income)}</p>
-        </div>
-        <div className="w-px bg-border" />
-        <div className="text-center">
-          <p className="text-xs text-muted-foreground mb-0.5">Expenses</p>
-          <p className="text-base font-semibold tabular-nums text-red-500/80 dark:text-red-400/80">
-            {formatCurrency(expense)}
+    <div className="px-3 pt-3">
+      <div className="rounded-xl bg-muted/60 px-4 py-4">
+        <div className="mb-3 text-center">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">{label} Net</p>
+          <p className={cn("text-3xl font-bold tabular-nums", net < 0 ? "text-red-500" : "")}>
+            {formatCurrency(net)}
           </p>
+        </div>
+        <div className="flex justify-around">
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground mb-0.5">Income</p>
+            <p className="text-base font-semibold tabular-nums">{formatCurrency(income)}</p>
+          </div>
+          <div className="w-px bg-border" />
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground mb-0.5">Expenses</p>
+            <p className="text-base font-semibold tabular-nums text-red-500/80 dark:text-red-400/80">
+              {formatCurrency(expense)}
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -139,7 +143,7 @@ function PnLRow({ row, dateFrom, dateTo }: { row: BusinessPnLRow; dateFrom: stri
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 px-4 py-3.5 transition-colors active:bg-muted/60 hover:bg-muted/40"
+      className="flex items-center gap-3 p-3 rounded-xl bg-muted/60 transition-colors active:bg-muted hover:bg-muted/80"
     >
       <span
         className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -219,7 +223,7 @@ export function BusinessPnLReport() {
 
       {/* Rows */}
       <div className="flex-1 pb-6">
-        <div className="divide-y divide-border border-b border-border mt-4">
+        <div className="px-3 space-y-2 mt-3">
           {isLoading ? (
             [...Array(9)].map((_, i) => <RowSkeleton key={i} />)
           ) : (
