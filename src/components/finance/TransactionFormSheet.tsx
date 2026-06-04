@@ -1,17 +1,17 @@
 "use client"
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { TransactionForm } from "./TransactionForm"
+import { TransactionForm, type TransactionFormDefaults } from "./TransactionForm"
 import type { TransactionWithRelations } from "@/lib/finance/types"
 
 interface Props {
   open: boolean
   onClose: () => void
   transaction?: TransactionWithRelations
-  defaultAccountId?: string
+  defaults?: TransactionFormDefaults
 }
 
-export function TransactionFormSheet({ open, onClose, transaction, defaultAccountId }: Props) {
+export function TransactionFormSheet({ open, onClose, transaction, defaults }: Props) {
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
       <SheetContent
@@ -25,7 +25,7 @@ export function TransactionFormSheet({ open, onClose, transaction, defaultAccoun
         </SheetHeader>
         <TransactionForm
           transaction={transaction}
-          defaultAccountId={defaultAccountId}
+          defaults={defaults}
           onSuccess={onClose}
           onCancel={onClose}
         />

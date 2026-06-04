@@ -45,14 +45,21 @@ function todayISO() {
   return format(new Date(), "yyyy-MM-dd")
 }
 
+export type TransactionFormDefaults = {
+  type?: "income" | "expense" | "transfer"
+  account_id?: string
+  transfer_to_account_id?: string
+  description?: string
+}
+
 interface Props {
   transaction?: TransactionWithRelations
-  defaultAccountId?: string
+  defaults?: TransactionFormDefaults
   onSuccess: () => void
   onCancel: () => void
 }
 
-export function TransactionForm({ transaction, defaultAccountId, onSuccess, onCancel }: Props) {
+export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: Props) {
   const createTransaction = useCreateTransaction()
   const updateTransaction = useUpdateTransaction()
   const deleteTransaction = useDeleteTransaction()
@@ -75,12 +82,12 @@ export function TransactionForm({ transaction, defaultAccountId, onSuccess, onCa
           notes: transaction.notes,
         }
       : {
-          type: "expense",
-          account_id: defaultAccountId ?? "",
-          transfer_to_account_id: null,
+          type: defaults?.type ?? "expense",
+          account_id: defaults?.account_id ?? "",
+          transfer_to_account_id: defaults?.transfer_to_account_id ?? null,
           amount: 0,
           occurred_on: todayISO(),
-          description: "",
+          description: defaults?.description ?? "",
           business_id: null,
           notes: null,
         },

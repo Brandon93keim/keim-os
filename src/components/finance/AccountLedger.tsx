@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { AccountFormSheet } from "./AccountFormSheet"
 import { TransactionFormSheet } from "./TransactionFormSheet"
+import type { TransactionFormDefaults } from "./TransactionForm"
 import type { AccountWithBalance, TransactionWithRelations } from "@/lib/finance/types"
 
 const TYPE_LABELS: Record<string, string> = {
@@ -172,6 +173,7 @@ export function AccountLedger({ id }: { id: string }) {
   const [editSheetOpen, setEditSheetOpen] = useState(false)
   const [txSheetOpen, setTxSheetOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<TransactionWithRelations | undefined>(undefined)
+  const [txDefaults, setTxDefaults] = useState<TransactionFormDefaults | undefined>(undefined)
 
   const account = allAccounts.find((a) => a.id === id) as AccountWithBalance | undefined
   const isLoading = accountsLoading || txLoading
@@ -190,6 +192,17 @@ export function AccountLedger({ id }: { id: string }) {
 
   function openNewTx() {
     setEditTarget(undefined)
+    setTxDefaults({ account_id: id })
+    setTxSheetOpen(true)
+  }
+
+  function openPayDown() {
+    setEditTarget(undefined)
+    setTxDefaults({
+      type: "transfer",
+      transfer_to_account_id: account?.id,
+      description: `Payment to ${account?.name ?? ""}`,
+    })
     setTxSheetOpen(true)
   }
 
@@ -224,7 +237,7 @@ export function AccountLedger({ id }: { id: string }) {
       <div className="bg-muted/40 border-b border-border px-4 py-4">
         <div className="text-center mb-3">
           <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-            Current Balance
+            {isLiability ? "Amount Owed" : "Current Balance"}
           </p>
           {accountsLoading ? (
             <Skeleton className="h-9 w-36 mx-auto" />
@@ -237,6 +250,15 @@ export function AccountLedger({ id }: { id: string }) {
             >
               {formatCurrency(Math.abs(balance))}
             </p>
+          )}
+          {isLiability && !accountsLoading && (
+            <button
+              type="button"
+              onClick={openPayDown}
+              className="mt-3 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm active:scale-95 transition-transform"
+            >
+              Pay down
+            </button>
           )}
         </div>
 
@@ -334,7 +356,7 @@ export function AccountLedger({ id }: { id: string }) {
         open={txSheetOpen}
         onClose={closeTxSheet}
         transaction={editTarget}
-        defaultAccountId={id}
+        defaults={txDefaults}
       />
     </div>
   )
