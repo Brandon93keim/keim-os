@@ -129,9 +129,10 @@ export function AccountList() {
         )}
 
         {/* Action cubes */}
-        <div className="grid grid-cols-2 gap-3">
-          {billsLoading ? (
+        <div className="grid grid-cols-3 gap-3">
+          {billsLoading || isLoading ? (
             <>
+              <Skeleton className="h-20 rounded-xl" />
               <Skeleton className="h-20 rounded-xl" />
               <Skeleton className="h-20 rounded-xl" />
             </>
@@ -146,6 +147,16 @@ export function AccountList() {
               <MoneyCube
                 label="Transactions"
                 onClick={() => router.push("/money/transactions")}
+              />
+              <MoneyCube
+                label="Liabilities"
+                value={
+                  <span className="text-red-500/80 dark:text-red-400/80">
+                    {formatCurrency(liabilitiesTotal)}
+                  </span>
+                }
+                sublabel="owed"
+                onClick={() => router.push("/money/liabilities")}
               />
             </>
           )}
@@ -177,42 +188,6 @@ export function AccountList() {
                     key={account.id}
                     label={account.name}
                     value={formatCurrency(Math.abs(Number(account.current_balance)))}
-                    colorDot={business?.color}
-                    onClick={() => navigateToLedger(account.id)}
-                  />
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Liabilities */}
-        <div className="px-3 mt-6">
-          <div className="flex items-baseline justify-between mb-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Liabilities</p>
-            {!isLoading && (
-              <p className="text-xs font-semibold tabular-nums text-red-500/80 dark:text-red-400/80">
-                {formatCurrency(liabilitiesTotal)}
-              </p>
-            )}
-          </div>
-          {isLoading ? (
-            <GridSkeleton />
-          ) : liabilities.length === 0 ? (
-            <p className="py-4 text-sm text-muted-foreground">No liability accounts.</p>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              {liabilities.map((account) => {
-                const business = account.business_id ? getBusinessById(account.business_id) : null
-                return (
-                  <MoneyCube
-                    key={account.id}
-                    label={account.name}
-                    value={
-                      <span className="text-red-500/80 dark:text-red-400/80">
-                        {formatCurrency(Math.abs(Number(account.current_balance)))}
-                      </span>
-                    }
                     colorDot={business?.color}
                     onClick={() => navigateToLedger(account.id)}
                   />
