@@ -48,7 +48,7 @@ export async function createAccount(values: AccountFormValues): Promise<void> {
     name: values.name,
     type: values.type,
     kind: values.kind,
-    starting_balance: values.starting_balance,
+    starting_balance: values.kind === "liability" ? -Math.abs(values.starting_balance) : values.starting_balance,
     business_id: values.business_id,
     is_active: values.is_active,
   })
@@ -63,7 +63,7 @@ export async function updateAccount(id: string, values: AccountFormValues): Prom
       name: values.name,
       type: values.type,
       kind: values.kind,
-      starting_balance: values.starting_balance,
+      starting_balance: values.kind === "liability" ? -Math.abs(values.starting_balance) : values.starting_balance,
       business_id: values.business_id,
       is_active: values.is_active,
     })

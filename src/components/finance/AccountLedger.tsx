@@ -261,7 +261,7 @@ export function AccountLedger({ id }: { id: string }) {
         {/* Starting balance + tx count */}
         {!isLoading && account && (
           <p className="text-xs text-muted-foreground text-center">
-            Starting balance: {formatCurrency(Number(account.starting_balance))}
+            Starting balance: {formatCurrency(Math.abs(Number(account.starting_balance)))}
             {" · "}
             {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}
           </p>

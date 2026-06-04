@@ -59,7 +59,7 @@ export function AccountForm({ account, onSuccess, onCancel }: Props) {
           name: account.name,
           type: account.type,
           kind: account.kind,
-          starting_balance: Number(account.starting_balance),
+          starting_balance: Math.abs(Number(account.starting_balance)),
           business_id: account.business_id,
           is_active: account.is_active,
         }
@@ -94,7 +94,7 @@ export function AccountForm({ account, onSuccess, onCancel }: Props) {
       .catch(() => {})
   }, [account])
 
-  const originalBalance = account ? Number(account.starting_balance) : null
+  const originalBalance = account ? Math.abs(Number(account.starting_balance)) : null
   const showBalanceWarning =
     !!account &&
     hasTransactions &&

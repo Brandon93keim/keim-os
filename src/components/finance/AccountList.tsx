@@ -90,7 +90,7 @@ export function AccountList() {
   const inactive = accounts?.filter((a) => !a.is_active) ?? []
 
   const assetsTotal = assets.reduce((sum, a) => sum + Number(a.current_balance), 0)
-  const liabilitiesTotal = liabilities.reduce((sum, a) => sum + Number(a.current_balance), 0)
+  const liabilitiesTotal = liabilities.reduce((sum, a) => sum + Math.abs(Number(a.current_balance)), 0)
 
   const ytdNet = pnlData?.totals.net ?? 0
   const ytdIncome = pnlData?.totals.income ?? 0
