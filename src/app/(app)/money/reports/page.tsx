@@ -1,5 +1,5 @@
-import { BusinessPnLReport } from "@/components/finance/BusinessPnLReport"
+import { MoneyReports } from "@/components/finance/MoneyReports"
 
 export default function ReportsPage() {
-  return <BusinessPnLReport />
+  return <MoneyReports />
 }

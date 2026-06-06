@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils"
 import { useBusinessPnL, type BusinessPnLRow } from "@/lib/hooks/useTransactions"
 import { formatCurrency } from "@/lib/finance/format"
 import { Skeleton } from "@/components/ui/skeleton"
-import { PageHeader } from "@/components/layout/PageHeader"
 import { DateRangePicker } from "./DateRangePicker"
 
 type RangeKey = "MTD" | "YTD" | "90d" | "12mo" | "Custom"
@@ -189,9 +188,7 @@ export function BusinessPnLReport() {
   const pickerValue = range === "Custom" ? (customRange ?? defaultCustomRange()) : undefined
 
   return (
-    <div className="flex flex-col min-h-full">
-      <PageHeader title="Reports" backHref="/money" />
-
+    <>
       {/* Chip row + inline date picker */}
       <div className="border-b border-border">
         <ChipRow selected={range} onSelect={handleRangeSelect} />
@@ -231,6 +228,6 @@ export function BusinessPnLReport() {
           )}
         </div>
       </div>
-    </div>
+    </>
   )
 }

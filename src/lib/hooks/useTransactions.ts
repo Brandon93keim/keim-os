@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { format, parseISO } from "date-fns"
 import {
   listTransactions,
   listAccountTransactions,
@@ -65,6 +66,63 @@ export function useBusinessPnL(dateFrom: string, dateTo: string) {
       )
 
       return { dateFrom, dateTo, rows, totals }
+    },
+  })
+}
+
+export type IncomePeriod = { key: string; label: string; total: number }
+export type IncomeStream = { businessId: string | null; businessName: string; color: string; income: number }
+export type IncomeReviewResult = {
+  periods: IncomePeriod[]
+  streams: IncomeStream[]
+  total: number
+}
+
+export function useIncomeReview(from: string, to: string, granularity: "month" | "year") {
+  return useQuery<IncomeReviewResult>({
+    queryKey: ["income-review", from, to, granularity],
+    queryFn: async () => {
+      const transactions = await listPnLTransactions(from, to)
+      const income = transactions.filter((tx) => tx.type === "income")
+
+      // Seed period keys (string-slice bucketing — avoids UTC-shift from Date math)
+      let periodKeys: string[]
+      if (granularity === "month") {
+        const year = from.slice(0, 4)
+        periodKeys = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`)
+      } else {
+        const startYear = parseInt(from.slice(0, 4))
+        const endYear = parseInt(to.slice(0, 4))
+        periodKeys = Array.from({ length: endYear - startYear + 1 }, (_, i) => String(startYear + i))
+      }
+
+      const periodMap = new Map<string, IncomePeriod>()
+      for (const key of periodKeys) {
+        const label = granularity === "month" ? format(parseISO(key + "-01"), "MMM") : key
+        periodMap.set(key, { key, label, total: 0 })
+      }
+
+      // Seed streams — same order as P&L (8 BUSINESSES + Personal)
+      const streamMap = new Map<string | null, IncomeStream>()
+      for (const biz of BUSINESSES) {
+        streamMap.set(biz.id, { businessId: biz.id, businessName: biz.name, color: biz.color, income: 0 })
+      }
+      streamMap.set(null, { businessId: null, businessName: "Personal", color: "#9CA3AF", income: 0 })
+
+      for (const tx of income) {
+        const periodKey = granularity === "month" ? tx.occurred_on.slice(0, 7) : tx.occurred_on.slice(0, 4)
+        const period = periodMap.get(periodKey)
+        if (period) period.total += Number(tx.amount)
+
+        const stream = streamMap.get(tx.business_id ?? null) ?? streamMap.get(null)!
+        stream.income += Number(tx.amount)
+      }
+
+      const periods = periodKeys.map((k) => periodMap.get(k)!)
+      const streams: IncomeStream[] = [...BUSINESSES.map((b) => streamMap.get(b.id)!), streamMap.get(null)!]
+      const total = periods.reduce((acc, p) => acc + p.total, 0)
+
+      return { periods, streams, total }
     },
   })
 }
