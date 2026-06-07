@@ -2,11 +2,10 @@
 
 import { useEffect, useRef, useState } from "react"
 import { format, isToday } from "date-fns"
-import { Bell, Repeat } from "lucide-react"
+import { Repeat } from "lucide-react"
 import { BUSINESSES, colorForEvent, shortJobNumber } from "@/lib/constants"
 import { roundToNearest15 } from "@/lib/date"
 import { cn } from "@/lib/utils"
-import { useClients } from "@/lib/hooks/useClients"
 import { layoutEventsForDay, topForTime, heightForEvent, HOUR_HEIGHT, GRID_START_HOUR } from "./eventLayout"
 import { TaskMarker } from "./TaskMarker"
 import type { CalEvent } from "@/lib/hooks/useEvents"
@@ -51,7 +50,6 @@ export function DayView({ anchorDate, events, tasks, onEventTap, onSlotTap, onPr
   const touchStartY = useRef<number | null>(null)
   const isVerticalScroll = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const { data: clients = [] } = useClients()
   const today = format(new Date(), "yyyy-MM-dd")
 
   const hours = (() => {
@@ -171,11 +169,9 @@ export function DayView({ anchorDate, events, tasks, onEventTap, onSlotTap, onPr
           {allDayEvents.map((event) => {
             const base = colorForEvent(event)
             const colors = { bg: base + "26", border: base, text: base + "e6" }
-            const isReminder = event.type === "reminder"
-            const linked = isReminder ? clients.find((c) => c.id === event.reminder_for_client_id) : null
             const label = event.job_number
               ? `${shortJobNumber(event.job_number)} · ${event.title}`
-              : linked ? `${event.title} · ${linked.name}` : event.title
+              : event.title
             return (
               <button
                 key={event.id}
@@ -188,7 +184,6 @@ export function DayView({ anchorDate, events, tasks, onEventTap, onSlotTap, onPr
                   color: colors.text,
                 }}
               >
-                {isReminder && <Bell size={10} className="shrink-0" />}
                 <span className="truncate max-w-[120px]">{label}</span>
               </button>
             )
