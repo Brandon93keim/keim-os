@@ -68,6 +68,17 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [distributeOpen, setDistributeOpen] = useState(false)
 
+  const isSystemLinked = !!(
+    transaction?.payment_id ||
+    transaction?.bill_payment_id ||
+    transaction?.invoice_id
+  )
+  const systemLinkLabel = transaction?.invoice_id
+    ? "an invoice"
+    : transaction?.payment_id
+    ? "an invoice payment"
+    : "a bill payment"
+
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionFormSchema),
     defaultValues: transaction
@@ -148,6 +159,13 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
         <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y px-4 py-4 pb-6 space-y-5">
 
+          {/* System-link notice */}
+          {isSystemLinked && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2.5 text-sm text-amber-800 dark:text-amber-300">
+              This transaction is linked to {systemLinkLabel} and must be edited or deleted there. Only description and notes can be changed here.
+            </div>
+          )}
+
           {/* Type — segmented control */}
           <FormField
             control={form.control}
@@ -161,12 +179,14 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
                       <button
                         key={opt.value}
                         type="button"
+                        disabled={isSystemLinked}
                         onClick={() => field.onChange(opt.value)}
                         className={cn(
                           "flex-1 rounded-md py-1.5 text-sm font-medium transition-colors",
                           field.value === opt.value
                             ? "bg-background shadow text-foreground"
-                            : "text-muted-foreground hover:text-foreground"
+                            : "text-muted-foreground hover:text-foreground",
+                          isSystemLinked && "cursor-not-allowed opacity-60"
                         )}
                       >
                         {opt.label}
@@ -186,7 +206,7 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
             render={({ field }) => (
               <FormItem>
                 <FormLabel>{ACCOUNT_LABEL[typeValue] ?? "Account"} *</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || ""}>
+                <Select onValueChange={field.onChange} value={field.value || ""} disabled={isSystemLinked}>
                   <FormControl>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select account" />
@@ -216,6 +236,7 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
                   <Select
                     onValueChange={(v) => field.onChange(v || null)}
                     value={field.value ?? ""}
+                    disabled={isSystemLinked}
                   >
                     <FormControl>
                       <SelectTrigger className="w-full">
@@ -255,6 +276,7 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
                       inputMode="decimal"
                       placeholder="0.00"
                       className="pl-7"
+                      disabled={isSystemLinked}
                       {...field}
                       onChange={(e) => {
                         const v = parseFloat(e.target.value)

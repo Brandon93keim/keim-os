@@ -144,18 +144,37 @@ export async function updateTransaction(
   values: TransactionFormValues
 ): Promise<void> {
   const supabase = createClient()
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("transactions")
+    .select("payment_id, bill_payment_id, invoice_id")
+    .eq("id", id)
+    .single()
+  if (fetchError) throw fetchError
+
+  const isSystemLinked = !!(existing.payment_id || existing.bill_payment_id || existing.invoice_id)
+
+  const payload = isSystemLinked
+    ? {
+        description: values.description,
+        notes: values.notes,
+        occurred_on: values.occurred_on,
+        business_id: values.business_id,
+      }
+    : {
+        account_id: values.account_id,
+        transfer_to_account_id: values.type === "transfer" ? values.transfer_to_account_id : null,
+        type: values.type,
+        amount: values.amount,
+        occurred_on: values.occurred_on,
+        description: values.description,
+        business_id: values.type === "transfer" ? null : values.business_id,
+        notes: values.notes,
+      }
+
   const { error } = await supabase
     .from("transactions")
-    .update({
-      account_id: values.account_id,
-      transfer_to_account_id: values.type === "transfer" ? values.transfer_to_account_id : null,
-      type: values.type,
-      amount: values.amount,
-      occurred_on: values.occurred_on,
-      description: values.description,
-      business_id: values.type === "transfer" ? null : values.business_id,
-      notes: values.notes,
-    })
+    .update(payload)
     .eq("id", id)
   if (error) throw error
 }
