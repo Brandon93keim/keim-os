@@ -399,7 +399,7 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
           )}
 
           {/* Delete confirm inline */}
-          {showDeleteConfirm && (
+          {showDeleteConfirm && !isSystemLinked && (
             <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-3 space-y-2">
               <p className="text-sm text-destructive">Delete this transaction? This cannot be undone.</p>
               <div className="flex gap-2">
@@ -432,7 +432,7 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
           className="flex gap-3 border-t border-border bg-popover px-4 py-4 shrink-0"
           style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
         >
-          {transaction && !showDeleteConfirm && (
+          {transaction && !showDeleteConfirm && !isSystemLinked && (
             <Button
               type="button"
               variant="destructive"
