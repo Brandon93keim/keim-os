@@ -1,19 +1,36 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import { X, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useAllocationRules } from "@/lib/hooks/useAllocationRules"
 import { useDistribution, useCreateDistribution, useUndoDistribution } from "@/lib/hooks/useDistribution"
+import { useAccounts } from "@/lib/hooks/useAccounts"
 import { formatCurrency } from "@/lib/finance/format"
-import type { TransactionWithRelations, AllocationRuleWithAccount } from "@/lib/finance/types"
+import type { TransactionWithRelations, AllocationRuleWithAccount, AccountWithBalance } from "@/lib/finance/types"
 import type { DistributionLine } from "@/lib/queries/finance"
 
 type LineState = DistributionLine & {
   destination_name: string
+  amountStr: string
+}
+
+type SetAside = {
+  id: string
+  account_id: string
+  account_name: string
+  amount: number
   amountStr: string
 }
 
@@ -54,6 +71,10 @@ function computeLines(
   return lines
 }
 
+function sumValidSetAsides(setAsides: SetAside[]): number {
+  return setAsides.reduce((s, sa) => s + Math.max(0, sa.amount), 0)
+}
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -63,31 +84,93 @@ interface Props {
 export function DistributeDialog({ open, onClose, income }: Props) {
   const { data: rules = [], isLoading: rulesLoading } = useAllocationRules()
   const { data: existing = [], isLoading: distLoading } = useDistribution(income.id)
+  const { data: accounts = [] } = useAccounts()
   const createDist = useCreateDistribution()
   const undoDist = useUndoDistribution()
 
   const [lines, setLines] = useState<LineState[]>([])
+  const [setAsides, setSetAsides] = useState<SetAside[]>([])
   const [initialized, setInitialized] = useState(false)
+  const nextId = useRef(0)
 
   // Reset when the income changes (dialog reused for a different transaction)
   useEffect(() => {
     setInitialized(false)
     setLines([])
+    setSetAsides([])
+    nextId.current = 0
   }, [income.id])
 
-  // Initialize editable lines once rules are available
+  // Initialize rule lines once rules are available
   useEffect(() => {
     if (initialized || !rules.length) return
     setLines(computeLines(Number(income.amount), rules))
     setInitialized(true)
   }, [initialized, rules, income.amount])
 
+  // Recompute rule lines whenever set-asides change (post-init)
+  useEffect(() => {
+    if (!initialized || !rules.length) return
+    const base = Number(income.amount) - sumValidSetAsides(setAsides)
+    setLines(computeLines(Math.max(0, base), rules))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setAsides])
+
   const isLoading = rulesLoading || distLoading
   const isDistributed = !distLoading && existing.length > 0
 
   const incomeAmount = Number(income.amount)
-  const totalDistributed = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100
+  const saSum = sumValidSetAsides(setAsides)
+  const base = incomeAmount - saSum
+  const ruleTotal = lines.reduce((s, l) => s + l.amount, 0)
+  const totalDistributed = Math.round((saSum + ruleTotal) * 100) / 100
   const remainder = Math.round((incomeAmount - totalDistributed) * 100) / 100
+
+  // Active asset accounts excluding the source account
+  const eligibleAccounts = accounts.filter(
+    (a) => a.kind === "asset" && a.id !== income.account_id
+  )
+
+  function addSetAside() {
+    const id = String(nextId.current++)
+    setSetAsides((prev) => [
+      ...prev,
+      { id, account_id: "", account_name: "", amount: 0, amountStr: "" },
+    ])
+  }
+
+  function updateSetAsideAccount(saId: string, accountId: string) {
+    const account = accounts.find((a) => a.id === accountId)
+    setSetAsides((prev) =>
+      prev.map((sa) =>
+        sa.id === saId
+          ? { ...sa, account_id: accountId, account_name: account?.name ?? "" }
+          : sa
+      )
+    )
+  }
+
+  function updateSetAsideAmount(saId: string, raw: string) {
+    const parsed = parseFloat(raw)
+    const amount = isNaN(parsed) ? 0 : Math.round(parsed * 100) / 100
+    setSetAsides((prev) =>
+      prev.map((sa) => (sa.id === saId ? { ...sa, amount, amountStr: raw } : sa))
+    )
+  }
+
+  function blurSetAsideAmount(saId: string) {
+    setSetAsides((prev) =>
+      prev.map((sa) =>
+        sa.id === saId
+          ? { ...sa, amountStr: sa.amount > 0 ? sa.amount.toFixed(2) : "" }
+          : sa
+      )
+    )
+  }
+
+  function removeSetAside(saId: string) {
+    setSetAsides((prev) => prev.filter((sa) => sa.id !== saId))
+  }
 
   function updateAmount(index: number, raw: string) {
     const parsed = parseFloat(raw)
@@ -106,17 +189,28 @@ export function DistributeDialog({ open, onClose, income }: Props) {
   }
 
   async function handleDistribute() {
+    const setAsideLines: DistributionLine[] = setAsides
+      .filter((sa) => sa.account_id && sa.amount > 0)
+      .map((sa) => ({
+        label: sa.account_name,
+        destination_account_id: sa.account_id,
+        amount: sa.amount,
+      }))
+
     await createDist.mutateAsync({
       income: {
         id: income.id,
         account_id: income.account_id,
         occurred_on: income.occurred_on,
       },
-      lines: lines.map((l) => ({
-        label: l.label,
-        destination_account_id: l.destination_account_id,
-        amount: l.amount,
-      })),
+      lines: [
+        ...setAsideLines,
+        ...lines.map((l) => ({
+          label: l.label,
+          destination_account_id: l.destination_account_id,
+          amount: l.amount,
+        })),
+      ],
     })
     onClose()
   }
@@ -153,9 +247,17 @@ export function DistributeDialog({ open, onClose, income }: Props) {
         ) : (
           <DistributeFormView
             income={income}
+            setAsides={setAsides}
             lines={lines}
+            base={base}
             remainder={remainder}
             totalDistributed={totalDistributed}
+            eligibleAccounts={eligibleAccounts}
+            onAddSetAside={addSetAside}
+            onUpdateSetAsideAccount={updateSetAsideAccount}
+            onUpdateSetAsideAmount={updateSetAsideAmount}
+            onBlurSetAsideAmount={blurSetAsideAmount}
+            onRemoveSetAside={removeSetAside}
             onUpdateAmount={updateAmount}
             onBlurAmount={blurAmount}
             onDistribute={handleDistribute}
@@ -204,9 +306,17 @@ function NoRulesView({ onClose }: { onClose: () => void }) {
 
 function DistributeFormView({
   income,
+  setAsides,
   lines,
+  base,
   remainder,
   totalDistributed,
+  eligibleAccounts,
+  onAddSetAside,
+  onUpdateSetAsideAccount,
+  onUpdateSetAsideAmount,
+  onBlurSetAsideAmount,
+  onRemoveSetAside,
   onUpdateAmount,
   onBlurAmount,
   onDistribute,
@@ -214,15 +324,25 @@ function DistributeFormView({
   isDistributing,
 }: {
   income: TransactionWithRelations
+  setAsides: SetAside[]
   lines: LineState[]
+  base: number
   remainder: number
   totalDistributed: number
+  eligibleAccounts: AccountWithBalance[]
+  onAddSetAside: () => void
+  onUpdateSetAsideAccount: (id: string, accountId: string) => void
+  onUpdateSetAsideAmount: (id: string, raw: string) => void
+  onBlurSetAsideAmount: (id: string) => void
+  onRemoveSetAside: (id: string) => void
   onUpdateAmount: (index: number, raw: string) => void
   onBlurAmount: (index: number) => void
   onDistribute: () => void
   onCancel: () => void
   isDistributing: boolean
 }) {
+  const baseNegative = base < 0
+
   return (
     <>
       <div className="flex-1 overflow-y-auto overscroll-contain">
@@ -234,7 +354,92 @@ function DistributeFormView({
           </p>
         </div>
 
-        {/* Allocation lines */}
+        {/* Set-aside section */}
+        <div className="border-b border-border">
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Set aside
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs gap-1"
+              onClick={onAddSetAside}
+              disabled={isDistributing}
+            >
+              <Plus className="h-3 w-3" />
+              Add set-aside
+            </Button>
+          </div>
+
+          {setAsides.length === 0 ? (
+            <p className="px-4 pb-3 text-xs text-muted-foreground">
+              Optionally route fixed amounts to accounts before the rule split.
+            </p>
+          ) : (
+            <div className="divide-y divide-border">
+              {setAsides.map((sa) => (
+                <div key={sa.id} className="flex items-center gap-2 px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <Select
+                      value={sa.account_id || undefined}
+                      onValueChange={(val) => onUpdateSetAsideAccount(sa.id, val)}
+                      disabled={isDistributing}
+                    >
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Select account" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {eligibleAccounts.map((acct) => (
+                          <SelectItem key={acct.id} value={acct.id}>
+                            {acct.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="relative w-28 shrink-0">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm pointer-events-none">
+                      $
+                    </span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      inputMode="decimal"
+                      className="pl-7 text-right"
+                      value={sa.amountStr}
+                      placeholder="0.00"
+                      onChange={(e) => onUpdateSetAsideAmount(sa.id, e.target.value)}
+                      onBlur={() => onBlurSetAsideAmount(sa.id)}
+                      disabled={isDistributing}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => onRemoveSetAside(sa.id)}
+                    disabled={isDistributing}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {baseNegative && (
+            <p className="px-4 pb-3 text-xs text-destructive font-medium">
+              Set-asides exceed the deposit by{" "}
+              {formatCurrency(Math.abs(base))} — reduce them before distributing.
+            </p>
+          )}
+        </div>
+
+        {/* Allocation rule lines */}
         <div className="divide-y divide-border">
           {lines.map((line, i) => (
             <div key={i} className="flex items-center gap-3 px-4 py-3.5">
@@ -255,6 +460,7 @@ function DistributeFormView({
                   value={line.amountStr}
                   onChange={(e) => onUpdateAmount(i, e.target.value)}
                   onBlur={() => onBlurAmount(i)}
+                  disabled={isDistributing}
                 />
               </div>
             </div>
@@ -277,13 +483,16 @@ function DistributeFormView({
                 remainder < 0 ? "text-destructive" : ""
               )}
             >
-              {remainder < 0 ? `−${formatCurrency(Math.abs(remainder))} (over)` : formatCurrency(remainder)}
+              {remainder < 0
+                ? `−${formatCurrency(Math.abs(remainder))} (over)`
+                : formatCurrency(remainder)}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-border px-4 py-4 flex gap-3"
+      <div
+        className="shrink-0 border-t border-border px-4 py-4 flex gap-3"
         style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
       >
         <Button
@@ -299,7 +508,7 @@ function DistributeFormView({
           type="button"
           className="flex-1"
           onClick={onDistribute}
-          disabled={isDistributing || lines.length === 0}
+          disabled={isDistributing || lines.length === 0 || baseNegative}
         >
           {isDistributing ? "Distributing…" : "Distribute"}
         </Button>
