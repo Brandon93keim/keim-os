@@ -41,6 +41,7 @@ export const transactionFormSchema = z
       .min(1, "Description is required")
       .max(200, "Description must be 200 characters or fewer"),
     business_id: z.string().nullable(),
+    category_id: z.string().uuid().nullable(),
     notes: z
       .string()
       .max(500, "Notes must be 500 characters or fewer")
@@ -48,6 +49,13 @@ export const transactionFormSchema = z
   })
   .superRefine((data, ctx) => {
     if (data.type === "transfer") {
+      if (data.category_id !== null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Category must be empty for transfers",
+          path: ["category_id"],
+        })
+      }
       if (!data.transfer_to_account_id) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

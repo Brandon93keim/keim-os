@@ -134,6 +134,7 @@ export async function createTransaction(values: TransactionFormValues): Promise<
     occurred_on: values.occurred_on,
     description: values.description,
     business_id: values.type === "transfer" ? null : values.business_id,
+    category_id: values.type === "transfer" ? null : values.category_id,
     notes: values.notes,
   })
   if (error) throw error
@@ -169,6 +170,7 @@ export async function updateTransaction(
         occurred_on: values.occurred_on,
         description: values.description,
         business_id: values.type === "transfer" ? null : values.business_id,
+        category_id: values.type === "transfer" ? null : values.category_id,
         notes: values.notes,
       }
 

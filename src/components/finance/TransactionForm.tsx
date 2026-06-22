@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { transactionFormSchema, type TransactionFormValues } from "@/lib/finance/schemas"
 import { useCreateTransaction, useUpdateTransaction, useDeleteTransaction } from "@/lib/hooks/useTransactions"
 import { useAllAccounts } from "@/lib/hooks/useAccounts"
+import { useCategories } from "@/lib/hooks/useCategories"
 import { BUSINESSES } from "@/lib/constants"
 import { format } from "date-fns"
 import type { TransactionWithRelations } from "@/lib/finance/types"
@@ -64,6 +65,7 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
   const updateTransaction = useUpdateTransaction()
   const deleteTransaction = useDeleteTransaction()
   const { data: accounts = [] } = useAllAccounts()
+  const { data: categories = [] } = useCategories()
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [distributeOpen, setDistributeOpen] = useState(false)
@@ -90,6 +92,7 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
           occurred_on: transaction.occurred_on,
           description: transaction.description,
           business_id: transaction.business_id,
+          category_id: transaction.category_id,
           notes: transaction.notes,
         }
       : {
@@ -100,6 +103,7 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
           occurred_on: todayISO(),
           description: defaults?.description ?? "",
           business_id: null,
+          category_id: null,
           notes: null,
         },
   })
@@ -115,6 +119,21 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
       form.setValue("transfer_to_account_id", null, { shouldValidate: false })
     }
   }, [typeValue, form])
+
+  // When type changes, clear category_id if it no longer matches the new type's kind
+  // (transfers have no category; income/expense only see their own categories)
+  useEffect(() => {
+    if (typeValue === "transfer") {
+      form.setValue("category_id", null, { shouldValidate: false })
+      return
+    }
+    const currentCategoryId = form.getValues("category_id")
+    if (!currentCategoryId) return
+    const category = categories.find((c) => c.id === currentCategoryId)
+    if (!category || category.kind !== typeValue) {
+      form.setValue("category_id", null, { shouldValidate: false })
+    }
+  }, [typeValue, categories, form])
 
   // Auto-populate business_id when account changes (if not editing an existing transaction)
   useEffect(() => {
@@ -133,6 +152,10 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
       : undefined
 
   const otherAccounts = accounts.filter((a) => a.id !== accountIdValue)
+
+  const categoryOptions = categories.filter(
+    (c) => c.is_active === true && c.kind === typeValue
+  )
 
   async function onSubmit(values: TransactionFormValues) {
     // Ensure business_id is null for transfers regardless of hidden field
