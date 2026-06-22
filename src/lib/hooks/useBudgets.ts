@@ -2,8 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { format, startOfMonth, endOfMonth } from "date-fns"
-import { listPnLTransactions } from "@/lib/queries/finance"
-import { useCategories } from "./useCategories"
+import { listPnLTransactions, listCategories } from "@/lib/queries/finance"
 
 export type BudgetRow = {
   categoryId: string
@@ -23,8 +22,6 @@ export type BudgetMonthResult = {
 }
 
 export function useBudgets(monthDate: Date) {
-  const { data: categories = [] } = useCategories()
-
   // NEVER toISOString — string-format the local date to dodge the UTC-shift bug.
   const from = format(startOfMonth(monthDate), "yyyy-MM-dd")
   const to = format(endOfMonth(monthDate), "yyyy-MM-dd")
@@ -34,7 +31,10 @@ export function useBudgets(monthDate: Date) {
   return useQuery<BudgetMonthResult>({
     queryKey: ["budgets", monthKey],
     queryFn: async () => {
-      const transactions = await listPnLTransactions(from, to)
+      const [transactions, categories] = await Promise.all([
+        listPnLTransactions(from, to),
+        listCategories(),
+      ])
       const expenses = transactions.filter((tx) => tx.type === "expense")
 
       // Budgeted set: active categories with a monthly_budget set.
