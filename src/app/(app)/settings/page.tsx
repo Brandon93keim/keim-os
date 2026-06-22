@@ -40,6 +40,16 @@ export default async function SettingsPage() {
             </div>
             <ChevronRight size={16} className="text-muted-foreground shrink-0" />
           </Link>
+          <Link
+            href="/settings/categories"
+            className="flex items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors"
+          >
+            <div>
+              <p className="text-sm font-medium">Categories</p>
+              <p className="text-xs text-muted-foreground">Manage categories and monthly budgets</p>
+            </div>
+            <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+          </Link>
         </div>
       </section>
     </div>

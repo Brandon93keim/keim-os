@@ -129,7 +129,7 @@ export function AccountList() {
         )}
 
         {/* Action cubes */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {billsLoading || isLoading ? (
             <>
               <Skeleton className="h-20 rounded-xl" />
