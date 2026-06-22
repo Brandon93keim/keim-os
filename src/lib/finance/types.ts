@@ -44,6 +44,7 @@ export type Category = {
   parent_id: string | null;
   color: string | null;
   icon: string | null;
+  monthly_budget: number | null;
   is_active: boolean;
   sort_order: number;
   created_at: string;
