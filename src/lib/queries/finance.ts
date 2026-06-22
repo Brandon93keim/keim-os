@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
-import type { AccountWithBalance, TransactionWithRelations, AllocationRuleWithAccount } from "@/lib/finance/types"
+import type { AccountWithBalance, TransactionWithRelations, AllocationRuleWithAccount, Category, CategoryInput } from "@/lib/finance/types"
 import type { AccountFormValues, TransactionFormValues, AllocationRuleFormValues } from "@/lib/finance/schemas"
 
 export type DistributionLine = {
@@ -302,6 +302,73 @@ export async function updateAllocationRule(
 export async function deleteAllocationRule(id: string): Promise<void> {
   const supabase = createClient()
   const { error } = await supabase.from("allocation_rules").delete().eq("id", id)
+  if (error) throw error
+}
+
+export async function listCategories(): Promise<Category[]> {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+  const { data, error } = await supabase
+    .from("categories")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("kind")
+    .order("sort_order")
+    .order("name")
+  if (error) throw error
+  return (data ?? []) as unknown as Category[]
+}
+
+export async function createCategory(input: CategoryInput): Promise<void> {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const { data: maxRow, error: maxError } = await supabase
+    .from("categories")
+    .select("sort_order")
+    .eq("user_id", user.id)
+    .eq("kind", input.kind)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (maxError) throw maxError
+
+  const { error } = await supabase.from("categories").insert({
+    user_id: user.id,
+    name: input.name,
+    kind: input.kind,
+    monthly_budget: input.monthly_budget,
+    color: input.color,
+    is_active: input.is_active,
+    sort_order: (maxRow?.sort_order ?? 0) + 1,
+  })
+  if (error) throw error
+}
+
+export async function updateCategory(id: string, input: CategoryInput): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from("categories")
+    .update({
+      name: input.name,
+      kind: input.kind,
+      monthly_budget: input.monthly_budget,
+      color: input.color,
+      is_active: input.is_active,
+    })
+    .eq("id", id)
+  if (error) throw error
+}
+
+export async function deleteCategory(id: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from("categories").delete().eq("id", id)
   if (error) throw error
 }
 

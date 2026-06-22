@@ -50,6 +50,14 @@ export type Category = {
   created_at: string;
 };
 
+export type CategoryInput = {
+  name: string;
+  kind: TransactionType;
+  monthly_budget: number | null;
+  color: string | null;
+  is_active: boolean;
+};
+
 export type AccountWithBalance = Account & {
   current_balance: number;
 };
