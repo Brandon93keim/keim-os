@@ -8,8 +8,10 @@ import { transactionFormSchema, type TransactionFormValues } from "@/lib/finance
 import { useCreateTransaction, useUpdateTransaction, useDeleteTransaction } from "@/lib/hooks/useTransactions"
 import { useAllAccounts } from "@/lib/hooks/useAccounts"
 import { useCategories } from "@/lib/hooks/useCategories"
+import { useBudgets } from "@/lib/hooks/useBudgets"
+import { formatCurrency } from "@/lib/finance/format"
 import { BUSINESSES } from "@/lib/constants"
-import { format } from "date-fns"
+import { format, startOfMonth } from "date-fns"
 import type { TransactionWithRelations } from "@/lib/finance/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -66,6 +68,7 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
   const deleteTransaction = useDeleteTransaction()
   const { data: accounts = [] } = useAllAccounts()
   const { data: categories = [] } = useCategories()
+  const { data: budgetMonth } = useBudgets(startOfMonth(new Date()))
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [distributeOpen, setDistributeOpen] = useState(false)
@@ -156,6 +159,30 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
   const categoryOptions = categories.filter(
     (c) => c.is_active === true && c.kind === typeValue
   )
+
+  // Inline budget hint: only for expenses tagged with a budgeted category.
+  const categoryIdValue = form.watch("category_id")
+  const amountValue = form.watch("amount")
+  const budgetRow =
+    typeValue === "expense" && categoryIdValue
+      ? budgetMonth?.rows.find((r) => r.categoryId === categoryIdValue)
+      : undefined
+
+  let budgetProjected = 0
+  if (budgetRow) {
+    let baseline = budgetRow.spent
+    // Edit-mode: this transaction's amount is already in baseline.spent if it's
+    // the same category and falls in the current month — subtract to avoid double-counting.
+    if (
+      transaction &&
+      transaction.category_id === categoryIdValue &&
+      transaction.occurred_on.slice(0, 7) === budgetMonth?.monthKey
+    ) {
+      baseline -= Number(transaction.amount)
+    }
+    const amt = Number(amountValue)
+    budgetProjected = baseline + (Number.isFinite(amt) ? amt : 0)
+  }
 
   async function onSubmit(values: TransactionFormValues) {
     // Ensure business_id is null for transfers regardless of hidden field
@@ -423,6 +450,19 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
                     </SelectContent>
                   </Select>
                   <FormMessage />
+                  {budgetRow && (
+                    <p
+                      className={cn(
+                        "text-xs",
+                        budgetProjected <= budgetRow.limit
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-destructive"
+                      )}
+                    >
+                      {budgetRow.name}: {formatCurrency(budgetProjected)} of{" "}
+                      {formatCurrency(budgetRow.limit)} this month
+                    </p>
+                  )}
                 </FormItem>
               )}
             />
