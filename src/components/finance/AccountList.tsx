@@ -135,6 +135,7 @@ export function AccountList() {
               <Skeleton className="h-20 rounded-xl" />
               <Skeleton className="h-20 rounded-xl" />
               <Skeleton className="h-20 rounded-xl" />
+              <Skeleton className="h-20 rounded-xl" />
             </>
           ) : (
             <>
@@ -157,6 +158,10 @@ export function AccountList() {
                 }
                 sublabel="owed"
                 onClick={() => router.push("/money/liabilities")}
+              />
+              <MoneyCube
+                label="Budgets"
+                onClick={() => router.push("/money/budgets")}
               />
             </>
           )}
