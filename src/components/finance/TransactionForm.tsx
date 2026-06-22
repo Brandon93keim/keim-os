@@ -163,6 +163,7 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
       ...values,
       transfer_to_account_id: values.type === "transfer" ? values.transfer_to_account_id : null,
       business_id: values.type === "transfer" ? null : values.business_id,
+      category_id: values.type === "transfer" ? null : values.category_id,
     }
     if (transaction) {
       updateTransaction.mutate({ id: transaction.id, values: payload }, { onSuccess })
@@ -376,6 +377,46 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
                               style={{ backgroundColor: biz.color }}
                             />
                             {biz.name}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+
+          {/* Category (hidden for transfer) */}
+          {typeValue !== "transfer" && (
+            <FormField
+              control={form.control}
+              name="category_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <Select
+                    onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
+                    value={field.value ?? "__none__"}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="__none__">None</SelectItem>
+                      {categoryOptions.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          <span className="flex items-center gap-2">
+                            {cat.color && (
+                              <span
+                                className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: cat.color }}
+                              />
+                            )}
+                            {cat.name}
                           </span>
                         </SelectItem>
                       ))}
