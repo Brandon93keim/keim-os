@@ -1,11 +1,25 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type CSSProperties } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { addDays, format } from "date-fns"
-import { Bookmark, Download, Plus, Trash2, X } from "lucide-react"
+import { Bookmark, Download, GripVertical, Plus, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 import {
   invoiceFormSchema,
   type InvoiceFormValues,
@@ -139,10 +153,25 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
     shouldFocusError: false,
   })
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, move } = useFieldArray({
     control: form.control,
     name: "line_items",
   })
+
+  // Require an ~8px drag before activating, so taps on inputs/buttons inside a
+  // row don't get hijacked into a drag gesture (critical for touch/mobile).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  )
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = fields.findIndex((f) => f.id === active.id)
+    const newIndex = fields.findIndex((f) => f.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    move(oldIndex, newIndex)
+  }
 
   const watchedBusinessId = form.watch("business_id")
   const watchedClientId = form.watch("client_id")
@@ -389,19 +418,31 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
               </span>
             </div>
 
-            <div className="space-y-3">
-              {fields.map((fieldItem, index) => (
-                <LineItemRow
-                  key={fieldItem.id}
-                  index={index}
-                  form={form}
-                  availableJobs={availableJobs}
-                  templates={templates}
-                  watchedBusinessId={watchedBusinessId}
-                  onRemove={fields.length > 1 ? () => remove(index) : undefined}
-                />
-              ))}
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={fields.map((f) => f.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-3">
+                  {fields.map((fieldItem, index) => (
+                    <LineItemRow
+                      key={fieldItem.id}
+                      id={fieldItem.id}
+                      index={index}
+                      form={form}
+                      availableJobs={availableJobs}
+                      templates={templates}
+                      watchedBusinessId={watchedBusinessId}
+                      onRemove={fields.length > 1 ? () => remove(index) : undefined}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
 
             <button
               type="button"
@@ -631,6 +672,7 @@ interface Job {
 }
 
 interface LineItemRowProps {
+  id: string
   index: number
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: any
@@ -646,7 +688,22 @@ const UNIT_TYPE_LABELS: Record<'hourly' | 'quantity' | 'flat', string> = {
   flat: 'Flat',
 }
 
-function LineItemRow({ index, form, availableJobs, templates, watchedBusinessId, onRemove }: LineItemRowProps) {
+function LineItemRow({ id, index, form, availableJobs, templates, watchedBusinessId, onRemove }: LineItemRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.85 : undefined,
+  }
+
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
   const [templateScope, setTemplateScope] = useState<string | null>(watchedBusinessId)
@@ -729,9 +786,23 @@ function LineItemRow({ index, form, availableJobs, templates, watchedBusinessId,
     : { label: 'Qty', step: 1, min: 1, placeholder: '1' }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-3 space-y-2.5">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="rounded-xl border border-border bg-card p-3 space-y-2.5"
+    >
       {/* Description with typeahead */}
       <div className="flex items-start gap-2">
+        {/* Drag handle — listeners live here only, so inputs stay usable */}
+        <button
+          type="button"
+          aria-label="Reorder line item"
+          className="shrink-0 -ml-1 h-11 w-8 flex items-center justify-center self-stretch touch-none cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={16} />
+        </button>
         <div className="flex-1 relative">
           <input
             type="text"
