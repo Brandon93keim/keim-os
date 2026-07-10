@@ -433,6 +433,7 @@ export type Database = {
           id: string
           invoice_number: string | null
           issue_date: string
+          job_id: string | null
           notes: string | null
           paid_at: string | null
           pdf_url: string | null
@@ -458,6 +459,7 @@ export type Database = {
           id?: string
           invoice_number?: string | null
           issue_date?: string
+          job_id?: string | null
           notes?: string | null
           paid_at?: string | null
           pdf_url?: string | null
@@ -483,6 +485,7 @@ export type Database = {
           id?: string
           invoice_number?: string | null
           issue_date?: string
+          job_id?: string | null
           notes?: string | null
           paid_at?: string | null
           pdf_url?: string | null
@@ -502,6 +505,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
         ]
@@ -1098,7 +1108,7 @@ export type Database = {
         }
       }
       generate_invoice_number: {
-        Args: { p_business_id: string }
+        Args: { p_business_id: string; p_job_id?: string }
         Returns: string
       }
       generate_job_number: { Args: { p_business_id: string }; Returns: string }

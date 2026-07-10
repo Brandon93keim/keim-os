@@ -13,6 +13,7 @@ export interface InvoiceRow {
   invoice_number: string | null
   business_id: string
   client_id: string
+  job_id: string | null
   status: string
   issue_date: string
   due_date: string
@@ -153,6 +154,7 @@ export async function createInvoice(values: InvoiceFormValues): Promise<InvoiceR
       user_id: userId,
       business_id: values.business_id,
       client_id: values.client_id,
+      job_id: values.job_id ?? null,
       issue_date: format(values.issue_date, "yyyy-MM-dd"),
       due_date: format(values.due_date, "yyyy-MM-dd"),
       due_terms: values.due_terms,
@@ -170,7 +172,7 @@ export async function createInvoice(values: InvoiceFormValues): Promise<InvoiceR
   // 2. Generate invoice number
   const { data: invNum, error: numErr } = await supabase.rpc(
     "generate_invoice_number",
-    { p_business_id: values.business_id }
+    { p_business_id: values.business_id, p_job_id: values.job_id ?? undefined }
   )
   if (numErr) {
     await supabase.from("invoices").delete().eq("id", invoice!.id)
@@ -214,6 +216,7 @@ export async function updateInvoice(id: string, values: InvoiceFormValues): Prom
     .update({
       business_id: values.business_id,
       client_id: values.client_id,
+      job_id: values.job_id ?? null,
       issue_date: format(values.issue_date, "yyyy-MM-dd"),
       due_date: format(values.due_date, "yyyy-MM-dd"),
       due_terms: values.due_terms,

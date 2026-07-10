@@ -61,6 +61,7 @@ function buildDefaults(invoice?: Invoice | null, prefillJob?: UnbilledJob | null
     return {
       business_id: invoice.business_id as (typeof BUSINESS_IDS)[number],
       client_id: invoice.client_id,
+      job_id: invoice.job_id,
       issue_date: new Date(invoice.issue_date),
       due_date: new Date(invoice.due_date),
       due_terms: invoice.due_terms ?? 'custom',
@@ -96,6 +97,7 @@ function buildDefaults(invoice?: Invoice | null, prefillJob?: UnbilledJob | null
     return {
       business_id: prefillJob.business_id as (typeof BUSINESS_IDS)[number],
       client_id: prefillJob.client_id ?? "",
+      job_id: prefillJob.job_id,
       issue_date: today,
       due_date: addDays(today, 30),
       due_terms: 'net_30' as const,
@@ -111,6 +113,7 @@ function buildDefaults(invoice?: Invoice | null, prefillJob?: UnbilledJob | null
   return {
     business_id: BUSINESSES[0].id as (typeof BUSINESS_IDS)[number],
     client_id: "",
+    job_id: null,
     issue_date: today,
     due_date: addDays(today, 30),
     due_terms: 'net_30' as const,

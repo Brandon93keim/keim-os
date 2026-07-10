@@ -43,6 +43,7 @@ export const invoiceFormSchema = z
   .object({
     business_id: z.enum(BUSINESS_IDS, { message: "Select a business" }),
     client_id: z.string().uuid("Select a client"),
+    job_id: z.string().uuid().nullable().optional(),
     issue_date: z.date(),
     due_date: z.date(),
     due_terms: z.enum(['on_receipt', 'net_15', 'net_30', 'custom']),
