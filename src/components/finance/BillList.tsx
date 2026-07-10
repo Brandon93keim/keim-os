@@ -55,7 +55,7 @@ export function BillList() {
   const { data: monthPayments = [], isLoading: paymentsLoading } = useMonthBillPayments(monthStart, monthEnd)
   const { data: latestPayments = {}, isLoading: latestLoading } = useLatestPaymentPerBill()
 
-  const [activeCtx, setActiveCtx] = useState<RecordBillPaymentContext | null>(null)
+  const [activeBill, setActiveBill] = useState<BillWithNextDue | null>(null)
   const [formSheetOpen, setFormSheetOpen] = useState(false)
   const [editingBill, setEditingBill] = useState<BillWithNextDue | undefined>(undefined)
   const [allBillsOpen, setAllBillsOpen] = useState(false)
@@ -233,7 +233,7 @@ export function BillList() {
                     value={value}
                     sublabel={sublabel}
                     colorDot={business?.color}
-                    onClick={() => setActiveCtx(billToCtx(bill))}
+                    onClick={() => setActiveBill(bill)}
                   />
                 )
               })}
@@ -301,11 +301,16 @@ export function BillList() {
       </button>
 
       {/* Mark Paid Dialog */}
-      {activeCtx && (
+      {activeBill && (
         <MarkPaidDialog
           open={true}
-          onClose={() => setActiveCtx(null)}
-          ctx={activeCtx}
+          onClose={() => setActiveBill(null)}
+          ctx={billToCtx(activeBill)}
+          onEdit={() => {
+            const bill = activeBill
+            setActiveBill(null)
+            openEdit(bill)
+          }}
         />
       )}
 

@@ -37,13 +37,14 @@ interface Props {
   open: boolean
   onClose: () => void
   ctx: RecordBillPaymentContext
+  onEdit?: () => void
 }
 
 function todayStr(): string {
   return format(new Date(), "yyyy-MM-dd")
 }
 
-export function MarkPaidDialog({ open, onClose, ctx }: Props) {
+export function MarkPaidDialog({ open, onClose, ctx, onEdit }: Props) {
   const { data: accounts = [] } = useAllAccounts()
 
   const assetAccounts = useMemo(
@@ -213,6 +214,16 @@ export function MarkPaidDialog({ open, onClose, ctx }: Props) {
                 </FormItem>
               )}
             />
+
+            {onEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="flex min-h-[44px] w-full items-center justify-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Edit bill
+              </button>
+            )}
 
             <div className="flex gap-3 pt-2">
               <Button
