@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Plus } from "lucide-react"
+import { Plus, ChevronRight } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import {
   useBills,
@@ -58,6 +58,7 @@ export function BillList() {
   const [activeCtx, setActiveCtx] = useState<RecordBillPaymentContext | null>(null)
   const [formSheetOpen, setFormSheetOpen] = useState(false)
   const [editingBill, setEditingBill] = useState<BillWithNextDue | undefined>(undefined)
+  const [allBillsOpen, setAllBillsOpen] = useState(false)
 
   // paid_on DESC order from query, so first encountered per bill is the most recent
   const paidMap = useMemo(() => {
@@ -75,6 +76,9 @@ export function BillList() {
     const paid: BillWithNextDue[] = []
 
     for (const bill of bills) {
+      // Inactive/paused bills only surface in the All bills section — never
+      // in the unpaid/paid buckets, counter line, or hero totals.
+      if (!bill.is_active) continue
       if (paidMap.has(bill.id)) {
         paid.push(bill)
       } else {
@@ -97,6 +101,13 @@ export function BillList() {
   }, [bills, paidMap, monthEnd, today])
 
   const allBills = useMemo(() => [...unpaid, ...paid], [unpaid, paid])
+
+  // Every bill (including inactive/paused and ones not due this month),
+  // sorted alphabetically — powers the collapsible "All bills" section.
+  const allBillsSorted = useMemo(
+    () => [...bills].sort((a, b) => a.name.localeCompare(b.name)),
+    [bills]
+  )
 
   const isLoading = billsLoading || outflowsLoading || paymentsLoading || latestLoading
 
@@ -226,6 +237,53 @@ export function BillList() {
                   />
                 )
               })}
+            </div>
+
+            {/* All bills — collapsed by default; the one place every bill
+                (paused, or not due this month) can be opened for edit/delete. */}
+            <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setAllBillsOpen((v) => !v)}
+                aria-expanded={allBillsOpen}
+                className="flex w-full min-h-[44px] items-center justify-between px-4 py-2.5 text-left"
+              >
+                <span className="text-sm font-medium">All bills</span>
+                <ChevronRight
+                  size={18}
+                  className={`text-muted-foreground transition-transform ${
+                    allBillsOpen ? "rotate-90" : ""
+                  }`}
+                />
+              </button>
+
+              {allBillsOpen && (
+                <ul className="divide-y divide-border border-t border-border">
+                  {allBillsSorted.map((bill) => (
+                    <li key={bill.id}>
+                      <button
+                        type="button"
+                        onClick={() => openEdit(bill)}
+                        className="flex w-full min-h-[44px] items-center justify-between gap-3 px-4 py-2.5 text-left active:bg-muted/50 transition-colors"
+                      >
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className="truncate text-sm">{bill.name}</span>
+                          {!bill.is_active && (
+                            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                              Paused
+                            </span>
+                          )}
+                        </span>
+                        {bill.default_amount != null && (
+                          <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
+                            {formatCurrency(Number(bill.default_amount))}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         )}

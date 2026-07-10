@@ -25,11 +25,13 @@ export async function listBills(): Promise<BillWithNextDue[]> {
   const supabase = createClient()
   const userId = await getUserId()
 
+  // No is_active filter: inactive/paused bills must reach the client so they
+  // stay reachable for editing/deletion in the "All bills" section. Callers
+  // that only want active bills (buckets, totals) filter client-side.
   const { data, error } = await supabase
     .from("bills_with_next_due")
     .select("*")
     .eq("user_id", userId)
-    .eq("is_active", true)
     .order("next_due_date", { ascending: true, nullsFirst: false })
 
   if (error) throw error
