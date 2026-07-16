@@ -1,4 +1,4 @@
-import { endOfDay, addDays, differenceInCalendarDays, startOfDay } from "date-fns"
+import { endOfDay, addDays, differenceInCalendarDays, startOfDay, isEqual, subMilliseconds } from "date-fns"
 import { colorForEvent } from "@/lib/constants"
 import type { CalEvent } from "@/lib/hooks/useEvents"
 
@@ -35,8 +35,14 @@ export function computeWeekBars(
     const eventEnd = new Date(event.end_time)
     if (eventStart > weekEnd || eventEnd < weekStart) continue
 
+    // An event ending exactly at midnight occupies zero time on that day, so
+    // treat its effective end as the final instant of the previous day.
+    const effectiveEnd = isEqual(eventEnd, startOfDay(eventEnd))
+      ? subMilliseconds(eventEnd, 1)
+      : eventEnd
+
     const continuesBefore = eventStart < weekStart
-    const continuesAfter = eventEnd > weekEnd
+    const continuesAfter = effectiveEnd > weekEnd
 
     const startCol = continuesBefore
       ? 0
@@ -44,7 +50,7 @@ export function computeWeekBars(
 
     const endCol = continuesAfter
       ? 6
-      : Math.min(6, Math.max(0, differenceInCalendarDays(startOfDay(eventEnd), weekStart)))
+      : Math.min(6, Math.max(0, differenceInCalendarDays(startOfDay(effectiveEnd), weekStart)))
 
     candidates.push({
       event,
