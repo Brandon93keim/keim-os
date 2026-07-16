@@ -288,7 +288,7 @@ export default function TransactionsPage() {
         onClick={openNew}
         aria-label="Add transaction"
         className="fixed right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform"
-        style={{ bottom: "calc(3.5rem + env(safe-area-inset-bottom) + 1rem)" }}
+        style={{ bottom: "calc(var(--bottom-nav-clearance) + 0.5rem)" }}
       >
         <Plus size={24} strokeWidth={2.5} />
       </button>

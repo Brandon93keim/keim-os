@@ -81,6 +81,16 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Floating bottom-nav pill geometry.
+     Clearance = pill height + bottom gap + device safe area.
+     Every consumer that must sit above the pill references
+     --bottom-nav-clearance instead of hardcoding these values. */
+  --bottom-nav-height: 3.5rem;
+  --bottom-nav-gap: 0.75rem;
+  --bottom-nav-clearance: calc(
+    var(--bottom-nav-height) + var(--bottom-nav-gap) + env(safe-area-inset-bottom)
+  );
 }
 
 .dark {

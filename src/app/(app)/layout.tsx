@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         className="flex-1 overflow-y-auto"
         style={{
           paddingTop: "env(safe-area-inset-top)",
-          paddingBottom: "calc(3.5rem + env(safe-area-inset-bottom))",
+          paddingBottom: "var(--bottom-nav-clearance)",
         }}
       >
         {children}

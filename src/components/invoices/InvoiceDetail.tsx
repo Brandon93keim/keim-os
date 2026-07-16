@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { format, parseISO } from "date-fns"
 import {
   ChevronDown, Download, Edit2, ExternalLink, GripVertical, MoreVertical,
-  Send, Trash2, User, X,
+  Send, Trash2, X,
 } from "lucide-react"
 import {
   DndContext,
@@ -53,6 +53,7 @@ import { PageHeader } from "@/components/layout/PageHeader"
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge"
 import { InvoiceFormSheet } from "./InvoiceFormSheet"
 import { RecordPaymentDialog } from "./RecordPaymentDialog"
+import { getInvoice } from "@/lib/queries/invoices"
 import type { Invoice, InvoiceLineItem } from "@/lib/queries/invoices"
 
 function DetailSkeleton() {
@@ -180,7 +181,6 @@ export function InvoiceDetail({ invoiceId }: Props) {
   const amountDue = Math.max(0, invoice.total - invoice.amount_paid)
   const effectiveStatus = getEffectiveStatus(invoice)
   const isOverdue = effectiveStatus === "overdue"
-  const canSend = invoice.status === "draft"
   const canPay = !["paid", "cancelled", "void"].includes(invoice.status)
   const canEdit = !["cancelled", "void"].includes(invoice.status)
 
@@ -194,11 +194,27 @@ export function InvoiceDetail({ invoiceId }: Props) {
     if (!invoice || !biz || !profile) return
     try {
       setPdfLoading(true)
+
+      // Drafts get an invoice number assigned at mark-sent time, so downloading
+      // a draft first sends it and refetches to pick up the assigned number —
+      // mirrors InvoiceForm's submitAndDownload sequencing. A failed mark-sent
+      // aborts the download rather than producing a numberless draft PDF.
+      let source = invoice
+      if (invoice.status === "draft") {
+        try {
+          await markSent.mutateAsync(invoiceId)
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Failed to mark invoice as sent")
+          return
+        }
+        source = await getInvoice(invoiceId)
+      }
+
       await downloadInvoicePdf(
-        invoice,
-        invoice.line_items,
-        invoice.payments,
-        invoice.client ?? null,
+        source,
+        source.line_items,
+        source.payments,
+        source.client ?? null,
         biz,
         profile,
       )
@@ -231,10 +247,10 @@ export function InvoiceDetail({ invoiceId }: Props) {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {canEdit && (
-                  <DropdownMenuItem onClick={() => setEditOpen(true)}>
-                    <Edit2 size={14} className="mr-2" />
-                    Edit
+                {invoice.status === "draft" && (
+                  <DropdownMenuItem onClick={() => markSent.mutate(invoiceId)}>
+                    <Send size={14} className="mr-2" />
+                    Mark as sent
                   </DropdownMenuItem>
                 )}
                 {!["cancelled", "void", "paid"].includes(invoice.status) && (
@@ -273,58 +289,48 @@ export function InvoiceDetail({ invoiceId }: Props) {
       {/* Scrollable content */}
       <div className="px-4 py-4 space-y-4 pb-32">
 
-        {/* Summary */}
-        <SectionCard>
-          <SectionTitle>Summary</SectionTitle>
-          <div className="space-y-3">
+        {/* Summary strip — chrome-free, sits directly under the header */}
+        <div className="space-y-1.5">
+          {/* Line 1: business pill + client name inline */}
+          <div className="flex items-center gap-2 flex-wrap">
             {biz && (
-              <div className="flex items-center gap-2">
-                <span
-                  className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium text-white"
-                  style={{ backgroundColor: biz.color }}
-                >
-                  {biz.name}
-                </span>
-              </div>
+              <span
+                className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium text-white shrink-0"
+                style={{ backgroundColor: biz.color }}
+              >
+                {biz.name}
+              </span>
             )}
             {invoice.client && (
               <button
                 type="button"
                 onClick={() => router.push(`/clients/${invoice.client!.id}`)}
-                className="flex items-center gap-2 text-sm w-full text-left active:opacity-70"
+                className="flex items-center gap-1.5 min-w-0 text-sm text-left active:opacity-70"
               >
-                <User size={15} className="text-muted-foreground shrink-0" />
-                <span className="font-medium">{invoice.client.name}</span>
+                <span className="font-medium truncate">{invoice.client.name}</span>
                 {invoice.client.company && (
-                  <span className="text-muted-foreground">— {invoice.client.company}</span>
+                  <span className="text-muted-foreground truncate">— {invoice.client.company}</span>
                 )}
-                <ExternalLink size={12} className="ml-auto text-muted-foreground" />
+                <ExternalLink size={12} className="shrink-0 text-muted-foreground" />
               </button>
             )}
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-0.5">
-                  Issue date
-                </div>
-                <div className="text-sm">{format(parseISO(invoice.issue_date), "MMMM d, yyyy")}</div>
-              </div>
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-0.5">
-                  Due date
-                </div>
-                <div className={cn("text-sm", isOverdue && "text-red-600 font-medium")}>
-                  {(invoice.due_terms ?? 'custom') === 'on_receipt'
-                    ? "Due on receipt"
-                    : (invoice.due_terms === 'net_15' || invoice.due_terms === 'net_30')
-                      ? `${format(parseISO(invoice.due_date), "MMM d, yyyy")} · ${DUE_TERM_LABELS[invoice.due_terms]}`
-                      : format(parseISO(invoice.due_date), "MMMM d, yyyy")
-                  }
-                  {isOverdue && " · Overdue"}
-                </div>
-              </div>
-            </div>
           </div>
-        </SectionCard>
+
+          {/* Line 2: issue + due date in a single dense row */}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Issued {format(parseISO(invoice.issue_date), "MMM d, yyyy")}</span>
+            <span aria-hidden>·</span>
+            <span className={cn(isOverdue && "text-red-600 font-medium")}>
+              {(invoice.due_terms ?? 'custom') === 'on_receipt'
+                ? "Due on receipt"
+                : (invoice.due_terms === 'net_15' || invoice.due_terms === 'net_30')
+                  ? `Due ${format(parseISO(invoice.due_date), "MMM d, yyyy")} · ${DUE_TERM_LABELS[invoice.due_terms]}`
+                  : `Due ${format(parseISO(invoice.due_date), "MMM d, yyyy")}`
+              }
+              {isOverdue && " · Overdue"}
+            </span>
+          </div>
+        </div>
 
         {/* Line items */}
         <SectionCard>
@@ -477,20 +483,19 @@ export function InvoiceDetail({ invoiceId }: Props) {
         )}
       </div>
 
-      {/* Sticky action footer — sits above BottomNav (h-14 + safe-area) */}
+      {/* Sticky action footer — sits above the floating BottomNav pill */}
       <div
         className="fixed left-0 right-0 z-20 bg-background/95 backdrop-blur border-t border-border px-4 py-3 flex gap-3"
-        style={{ bottom: "calc(3.5rem + env(safe-area-inset-bottom))" }}
+        style={{ bottom: "calc(var(--bottom-nav-clearance) + 0.5rem)" }}
       >
-        {canSend && (
+        {canEdit && (
           <Button
             variant="outline"
             className="flex-1 h-11 gap-2"
-            onClick={() => markSent.mutate(invoiceId)}
-            disabled={markSent.isPending}
+            onClick={() => setEditOpen(true)}
           >
-            <Send size={16} />
-            Mark Sent
+            <Edit2 size={16} />
+            Edit
           </Button>
         )}
         {canPay && (
@@ -499,16 +504,6 @@ export function InvoiceDetail({ invoiceId }: Props) {
             onClick={() => setPaymentOpen(true)}
           >
             Record Payment
-          </Button>
-        )}
-        {!canSend && !canPay && canEdit && (
-          <Button
-            variant="outline"
-            className="flex-1 h-11 gap-2"
-            onClick={() => setEditOpen(true)}
-          >
-            <Edit2 size={16} />
-            Edit
           </Button>
         )}
         <Button

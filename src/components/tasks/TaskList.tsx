@@ -259,7 +259,7 @@ export function TaskList() {
         style={{
           width: 56,
           height: 56,
-          bottom: "calc(env(safe-area-inset-bottom) + 80px)",
+          bottom: "calc(var(--bottom-nav-clearance) + 0.5rem)",
           right: 16,
         }}
         aria-label="New task"

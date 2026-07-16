@@ -24,8 +24,8 @@ export function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      className="fixed left-0 right-0 z-50 mx-4 overflow-hidden rounded-full border border-border bg-background/90 shadow-lg backdrop-blur"
+      style={{ bottom: "calc(var(--bottom-nav-gap) + env(safe-area-inset-bottom))" }}
     >
       <div className="flex h-14 items-stretch">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {

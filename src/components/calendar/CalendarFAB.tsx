@@ -44,7 +44,7 @@ export function CalendarFAB({ view, anchorDate, selectedDate, onOpen }: Props) {
       onClick={handleTap}
       className="fixed z-30 flex items-center justify-center w-14 h-14 rounded-full bg-slate-900 text-white shadow-lg active:scale-95 transition-transform dark:bg-slate-100 dark:text-slate-900"
       style={{
-        bottom: "calc(env(safe-area-inset-bottom) + 80px)",
+        bottom: "calc(var(--bottom-nav-clearance) + 0.5rem)",
         right: "16px",
       }}
       aria-label="New event"

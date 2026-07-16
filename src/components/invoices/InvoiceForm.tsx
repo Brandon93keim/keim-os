@@ -4,7 +4,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { addDays, format } from "date-fns"
-import { Download, GripVertical, Link, Plus } from "lucide-react"
+import { ChevronDown, Download, GripVertical, Link, Plus } from "lucide-react"
 import { toast } from "sonner"
 import {
   DndContext,
@@ -189,6 +189,12 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
   // Collapsed-section state is presentation only: it never reads back into the
   // form and never clears a value. Seeded once from the mount-time defaults so
   // editing an invoice that already uses these fields opens them expanded.
+  //
+  // Details collapses only when editing an existing invoice — its fields (business,
+  // client, dates, terms) are rarely changed after creation, so line items read as
+  // the primary surface. Creating a new invoice keeps Details always expanded, since
+  // those fields are required entry with no meaningful summary to collapse to.
+  const [detailsOpen, setDetailsOpen] = useState(() => !invoice)
   const [adjustmentsOpen, setAdjustmentsOpen] = useState(() => {
     const v = form.getValues()
     return (v.tax_rate ?? 0) !== 0 || (v.discount_amount ?? 0) !== 0
@@ -301,8 +307,19 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
         <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y px-4 py-4 pb-6">
 
           {/* ---------------------------------------------------------------- */}
-          {/* Details */}
+          {/* Details — collapses to a summary row when editing (see detailsOpen)*/}
           {/* ---------------------------------------------------------------- */}
+          {!detailsOpen ? (
+            <FormSection>
+              <DetailsSummaryRow
+                business={getBusinessById(watchedBusinessId)}
+                clientName={selectedClient?.name ?? ""}
+                issueDate={watchedIssueDate}
+                dueDate={watchedDueDate}
+                onClick={() => setDetailsOpen(true)}
+              />
+            </FormSection>
+          ) : (
           <FormSection title="Details">
 
           {/* Business */}
@@ -431,6 +448,7 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
           )}
 
           </FormSection>
+          )}
 
           {/* ---------------------------------------------------------------- */}
           {/* Line Items */}
@@ -733,6 +751,55 @@ function CollapsedRow({ onClick, children }: { onClick: () => void; children: Re
     >
       <Plus size={14} />
       <span className="truncate">{children}</span>
+    </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// DetailsSummaryRow — collapsed view of the Details section shown when editing.
+// Unlike CollapsedRow, this is a "view/expand" affordance for content that
+// already exists: solid card border + chevron, no dashed "add" styling.
+// ---------------------------------------------------------------------------
+function DetailsSummaryRow({
+  business,
+  clientName,
+  issueDate,
+  dueDate,
+  onClick,
+}: {
+  business: (typeof BUSINESSES)[number] | undefined
+  clientName: string
+  issueDate: Date
+  dueDate: Date
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2.5 text-left hover:border-foreground/40 transition-colors"
+    >
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <div className="flex items-center gap-1.5">
+          {business && (
+            <span
+              aria-hidden
+              className="shrink-0 h-2 w-2 rounded-full"
+              style={{ backgroundColor: business.color }}
+            />
+          )}
+          <span className="text-sm font-medium truncate">
+            {clientName || "No client"}
+          </span>
+        </div>
+        <div className="text-xs text-muted-foreground truncate">
+          {business ? `${business.name} · ` : ""}
+          {issueDate ? format(issueDate, "MMM d") : "—"}
+          {" → "}
+          {dueDate ? format(dueDate, "MMM d, yyyy") : "—"}
+        </div>
+      </div>
+      <ChevronDown size={16} className="shrink-0 text-muted-foreground" />
     </button>
   )
 }
