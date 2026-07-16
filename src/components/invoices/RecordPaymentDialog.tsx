@@ -42,10 +42,11 @@ interface Props {
   businessId: string
   invoiceNumber: string | null
   clientName: string | null
+  status: string
 }
 
 export function RecordPaymentDialog({
-  open, onClose, invoiceId, amountDue, businessId, invoiceNumber, clientName,
+  open, onClose, invoiceId, amountDue, businessId, invoiceNumber, clientName, status,
 }: Props) {
   const { data: accounts = [] } = useAllAccounts()
   const assetAccounts = useMemo(
@@ -57,7 +58,7 @@ export function RecordPaymentDialog({
     return personal?.id ?? assetAccounts[0]?.id ?? ""
   }, [assetAccounts])
 
-  const recordPayment = useRecordPayment({ invoiceId, businessId, invoiceNumber, clientName })
+  const recordPayment = useRecordPayment({ invoiceId, businessId, invoiceNumber, clientName, status })
 
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentFormSchema),

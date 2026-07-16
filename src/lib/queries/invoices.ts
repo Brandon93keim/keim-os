@@ -292,6 +292,7 @@ export interface RecordPaymentContext {
   businessId: string
   invoiceNumber: string | null
   clientName: string | null
+  status: string
 }
 
 export async function recordPayment(
@@ -301,6 +302,14 @@ export async function recordPayment(
   const supabase = createClient()
   const userId = await getUserId()
   const occurredOn = format(values.payment_date, "yyyy-MM-dd")
+
+  // A draft invoice must be marked sent (which assigns its number) before a
+  // payment is recorded — otherwise recalculate_invoice_state freezes it in
+  // draft and the payment never transitions it to paid/partially_paid. If
+  // marking sent fails, abort so we never record against an unnumbered draft.
+  if (ctx.status === "draft") {
+    await markInvoiceSent(ctx.invoiceId)
+  }
 
   const { data: payment, error: payErr } = await supabase
     .from("payments")

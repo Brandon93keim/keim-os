@@ -432,6 +432,7 @@ export function InvoiceDetail({ invoiceId }: Props) {
         businessId={invoice.business_id}
         invoiceNumber={invoice.invoice_number}
         clientName={invoice.client?.name ?? null}
+        status={invoice.status}
       />
 
       {/* Delete invoice confirm */}
