@@ -254,6 +254,27 @@ export async function updateInvoice(id: string, values: InvoiceFormValues): Prom
   if (liErr) throw liErr
 }
 
+export async function reorderInvoiceLineItems(
+  invoiceId: string,
+  orderedIds: string[]
+): Promise<void> {
+  const supabase = createClient()
+  const userId = await getUserId()
+
+  // Persist the new order using the same sort_order column the edit form writes.
+  // Only sort_order changes here, so amounts (and the recalc trigger's output)
+  // stay identical. Updates are scoped by user_id + invoice_id for safety.
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabase
+      .from("invoice_line_items")
+      .update({ sort_order: i })
+      .eq("id", orderedIds[i])
+      .eq("invoice_id", invoiceId)
+      .eq("user_id", userId)
+    if (error) throw error
+  }
+}
+
 export async function deleteInvoice(id: string): Promise<void> {
   const supabase = createClient()
   const { error } = await supabase.from("invoices").delete().eq("id", id)

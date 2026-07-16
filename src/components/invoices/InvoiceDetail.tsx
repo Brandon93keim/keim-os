@@ -1,13 +1,28 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type CSSProperties } from "react"
 import { useRouter } from "next/navigation"
 import { format, parseISO } from "date-fns"
 import {
-  ChevronDown, Download, Edit2, ExternalLink, MoreVertical,
+  ChevronDown, Download, Edit2, ExternalLink, GripVertical, MoreVertical,
   Send, Trash2, User, X,
 } from "lucide-react"
-import { useInvoice, useMarkInvoiceSent, useMarkInvoiceCancelled, useMarkInvoiceVoid, useDeleteInvoice, useDeletePayment } from "@/lib/hooks/useInvoices"
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { useInvoice, useMarkInvoiceSent, useMarkInvoiceCancelled, useMarkInvoiceVoid, useDeleteInvoice, useDeletePayment, useReorderInvoiceLineItems } from "@/lib/hooks/useInvoices"
 import { useProfile } from "@/lib/hooks/useProfile"
 import { getEffectiveStatus } from "@/lib/invoiceStatus"
 import { downloadInvoicePdf } from "@/lib/pdf"
@@ -38,7 +53,7 @@ import { PageHeader } from "@/components/layout/PageHeader"
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge"
 import { InvoiceFormSheet } from "./InvoiceFormSheet"
 import { RecordPaymentDialog } from "./RecordPaymentDialog"
-import type { Invoice } from "@/lib/queries/invoices"
+import type { Invoice, InvoiceLineItem } from "@/lib/queries/invoices"
 
 function DetailSkeleton() {
   return (
@@ -98,11 +113,48 @@ export function InvoiceDetail({ invoiceId }: Props) {
   const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
 
+  // Reorder mode for line items. `reorderItems` is a local working copy that
+  // is null when not reordering; entering snapshots the current line items.
+  const [reorderItems, setReorderItems] = useState<InvoiceLineItem[] | null>(null)
+
   const markSent = useMarkInvoiceSent()
   const markCancelled = useMarkInvoiceCancelled()
   const markVoid = useMarkInvoiceVoid()
   const deleteInvoice = useDeleteInvoice()
   const deletePayment = useDeletePayment(invoiceId)
+  const reorderLineItems = useReorderInvoiceLineItems(invoiceId)
+
+  // Same activation constraint as InvoiceForm — an ~8px drag before a tap turns
+  // into a drag, so touch scrolling stays usable.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  )
+
+  function handleReorderDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setReorderItems((items) => {
+      if (!items) return items
+      const oldIndex = items.findIndex((i) => i.id === active.id)
+      const newIndex = items.findIndex((i) => i.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return items
+      return arrayMove(items, oldIndex, newIndex)
+    })
+  }
+
+  function handleReorderDone() {
+    if (!reorderItems || !invoice) return
+    const orderedIds = reorderItems.map((i) => i.id)
+    const originalIds = invoice.line_items.map((i) => i.id)
+    // No change → exit without a write.
+    if (orderedIds.join() === originalIds.join()) {
+      setReorderItems(null)
+      return
+    }
+    reorderLineItems.mutate(orderedIds, {
+      onSuccess: () => setReorderItems(null),
+    })
+  }
 
   if (isLoading) {
     return (
@@ -276,23 +328,77 @@ export function InvoiceDetail({ invoiceId }: Props) {
 
         {/* Line items */}
         <SectionCard>
-          <SectionTitle>Line Items</SectionTitle>
-          <div className="space-y-3">
-            {invoice.line_items.map((item) => (
-              <div key={item.id} className="pb-3 border-b border-border last:border-0 last:pb-0">
-                <div className="text-sm font-medium">{item.description}</div>
-                <div className="flex items-center justify-between mt-1">
-                  <div className="text-xs text-muted-foreground">
-                    {item.unit_type === 'hourly' && `${item.quantity} hrs × $${item.unit_price.toFixed(2)}`}
-                    {item.unit_type === 'quantity' && `${item.quantity} × $${item.unit_price.toFixed(2)}`}
-                  </div>
-                  <div className="text-sm font-semibold tabular-nums">
-                    ${item.amount.toFixed(2)}
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Line Items
+            </div>
+            {reorderItems === null ? (
+              canEdit && invoice.line_items.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setReorderItems(invoice.line_items)}
+                  className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Reorder
+                </button>
+              )
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReorderItems(null)}
+                  disabled={reorderLineItems.isPending}
+                  className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReorderDone}
+                  disabled={reorderLineItems.isPending}
+                  className="text-xs font-semibold text-primary hover:opacity-80 transition-opacity disabled:opacity-50"
+                >
+                  {reorderLineItems.isPending ? "Saving…" : "Done"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {reorderItems === null ? (
+            <div className="space-y-3">
+              {invoice.line_items.map((item) => (
+                <div key={item.id} className="pb-3 border-b border-border last:border-0 last:pb-0">
+                  <div className="text-sm font-medium">{item.description}</div>
+                  <div className="flex items-center justify-between mt-1">
+                    <div className="text-xs text-muted-foreground">
+                      {item.unit_type === 'hourly' && `${item.quantity} hrs × $${item.unit_price.toFixed(2)}`}
+                      {item.unit_type === 'quantity' && `${item.quantity} × $${item.unit_price.toFixed(2)}`}
+                    </div>
+                    <div className="text-sm font-semibold tabular-nums">
+                      ${item.amount.toFixed(2)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleReorderDragEnd}
+            >
+              <SortableContext
+                items={reorderItems.map((i) => i.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-2">
+                  {reorderItems.map((item) => (
+                    <ReorderLineItemRow key={item.id} item={item} />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
         </SectionCard>
 
         {/* Totals */}
@@ -486,5 +592,55 @@ export function InvoiceDetail({ invoiceId }: Props) {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// ReorderLineItemRow — a single draggable row shown while in reorder mode.
+// Read-only content (no editing); the grip handle carries the drag listeners,
+// mirroring the LineItemRow setup in InvoiceForm.
+// ---------------------------------------------------------------------------
+function ReorderLineItemRow({ item }: { item: InvoiceLineItem }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id })
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.85 : undefined,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 rounded-lg border border-border bg-card p-2.5"
+    >
+      <button
+        type="button"
+        aria-label="Reorder line item"
+        className="shrink-0 -ml-1 h-9 w-7 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical size={16} />
+      </button>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium truncate">{item.description}</div>
+        <div className="text-xs text-muted-foreground">
+          {item.unit_type === 'hourly' && `${item.quantity} hrs × $${item.unit_price.toFixed(2)}`}
+          {item.unit_type === 'quantity' && `${item.quantity} × $${item.unit_price.toFixed(2)}`}
+        </div>
+      </div>
+      <div className="shrink-0 text-sm font-semibold tabular-nums">
+        ${item.amount.toFixed(2)}
+      </div>
+    </div>
   )
 }

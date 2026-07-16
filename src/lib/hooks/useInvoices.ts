@@ -11,6 +11,7 @@ import {
   markInvoiceSent as markInvoiceSentQuery,
   markInvoiceCancelled as markInvoiceCancelledQuery,
   markInvoiceVoid as markInvoiceVoidQuery,
+  reorderInvoiceLineItems as reorderInvoiceLineItemsQuery,
   recordPayment as recordPaymentQuery,
   deletePayment as deletePaymentQuery,
   listJobsForClientAndBusiness,
@@ -162,6 +163,22 @@ export function useMarkInvoiceVoid() {
     },
     onError: (err: Error) => {
       toast.error(err.message ?? "Failed to void invoice")
+    },
+  })
+}
+
+export function useReorderInvoiceLineItems(invoiceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (orderedIds: string[]) =>
+      reorderInvoiceLineItemsQuery(invoiceId, orderedIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] })
+      queryClient.invalidateQueries({ queryKey: ["invoices", invoiceId] })
+      toast.success("Line items reordered")
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to reorder line items")
     },
   })
 }
