@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type CSSProperties } from "react"
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { addDays, format } from "date-fns"
@@ -181,6 +181,19 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
   const watchedLineItems = form.watch("line_items")
   const watchedTaxRate = form.watch("tax_rate")
   const watchedDiscount = form.watch("discount_amount")
+  const watchedEmail = form.watch("email_address")
+
+  // Collapsed-section state is presentation only: it never reads back into the
+  // form and never clears a value. Seeded once from the mount-time defaults so
+  // editing an invoice that already uses these fields opens them expanded.
+  const [adjustmentsOpen, setAdjustmentsOpen] = useState(() => {
+    const v = form.getValues()
+    return (v.tax_rate ?? 0) !== 0 || (v.discount_amount ?? 0) !== 0
+  })
+  const [deliveryOpen, setDeliveryOpen] = useState(() => {
+    const v = form.getValues()
+    return Boolean(v.notes?.trim()) || Boolean(v.email_address?.trim())
+  })
 
   const { data: availableJobs = [] } = useJobsForLineItem(
     watchedClientId || null,
@@ -282,7 +295,12 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
   return (
     <Form {...form}>
       <form className="flex flex-col flex-1 min-h-0">
-        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y px-4 py-4 pb-6 space-y-5">
+        <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y px-4 py-4 pb-6">
+
+          {/* ---------------------------------------------------------------- */}
+          {/* Details */}
+          {/* ---------------------------------------------------------------- */}
+          <FormSection title="Details">
 
           {/* Business */}
           <FormField
@@ -409,15 +427,20 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
             )
           )}
 
-          {/* Line items */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <Label>Line Items *</Label>
+          </FormSection>
+
+          {/* ---------------------------------------------------------------- */}
+          {/* Line Items */}
+          {/* ---------------------------------------------------------------- */}
+          <FormSection
+            title="Line Items *"
+            right={
               <span className="text-xs text-muted-foreground tabular-nums">
                 Subtotal: ${subtotal.toFixed(2)}
               </span>
-            </div>
-
+            }
+          >
+          <div>
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -458,8 +481,20 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
               </p>
             )}
           </div>
+          </FormSection>
 
-          {/* Tax & discount */}
+          {/* ---------------------------------------------------------------- */}
+          {/* Adjustments — collapsed to a single row while tax and discount    */}
+          {/* are both zero.                                                    */}
+          {/* ---------------------------------------------------------------- */}
+          {!adjustmentsOpen ? (
+            <FormSection>
+              <CollapsedRow onClick={() => setAdjustmentsOpen(true)}>
+                Add tax or discount
+              </CollapsedRow>
+            </FormSection>
+          ) : (
+          <FormSection title="Adjustments">
           <div className="grid grid-cols-2 gap-3">
             <FormField
               control={form.control}
@@ -511,30 +546,21 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
               )}
             />
           </div>
+          </FormSection>
+          )}
 
-          {/* Live total preview */}
-          <div className="rounded-xl bg-muted/50 border border-border px-4 py-3 space-y-1.5">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span className="tabular-nums">${subtotal.toFixed(2)}</span>
-            </div>
-            {(watchedTaxRate ?? 0) > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Tax ({watchedTaxRate}%)</span>
-                <span className="tabular-nums">${taxAmount.toFixed(2)}</span>
-              </div>
-            )}
-            {(watchedDiscount ?? 0) > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Discount</span>
-                <span className="tabular-nums">-${(watchedDiscount ?? 0).toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex items-center justify-between font-bold border-t border-border pt-1.5">
-              <span>Total</span>
-              <span className="tabular-nums">${total.toFixed(2)}</span>
-            </div>
-          </div>
+          {/* ---------------------------------------------------------------- */}
+          {/* Delivery & Notes — collapsed by default.                          */}
+          {/* ---------------------------------------------------------------- */}
+          {!deliveryOpen ? (
+            <FormSection>
+              <CollapsedRow onClick={() => setDeliveryOpen(true)}>
+                {watchedEmail?.trim() ? watchedEmail : "Add email, notes, terms"}
+              </CollapsedRow>
+            </FormSection>
+          ) : (
+          <FormSection title="Delivery & Notes">
+          <div className="space-y-5">
 
           {/* Send-to email */}
           <FormField
@@ -585,6 +611,9 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
               </FormItem>
             )}
           />
+          </div>
+          </FormSection>
+          )}
         </div>
 
         {/* Sticky footer */}
@@ -592,6 +621,21 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
           className="shrink-0 border-t border-border bg-popover px-4 py-4"
           style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
         >
+          {/* Pinned total */}
+          <div className="mb-3">
+            {((watchedTaxRate ?? 0) > 0 || (watchedDiscount ?? 0) > 0) && (
+              <p className="text-xs text-muted-foreground tabular-nums">
+                Subtotal ${subtotal.toFixed(2)}
+                {(watchedTaxRate ?? 0) > 0 && ` · Tax $${taxAmount.toFixed(2)}`}
+                {(watchedDiscount ?? 0) > 0 && ` · Discount −$${(watchedDiscount ?? 0).toFixed(2)}`}
+              </p>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Total</span>
+              <span className="text-lg font-bold tabular-nums">${total.toFixed(2)}</span>
+            </div>
+          </div>
+
           <div className="flex gap-3">
             <Button type="button" variant="outline" onClick={onCancel} className="flex-1 h-11">
               Cancel
@@ -624,6 +668,51 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
         </div>
       </form>
     </Form>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// FormSection — uppercase header + rule, matching SectionHeader in
+// LineItemTemplateEditor. Omit `title` for a section that is only a tap target.
+// ---------------------------------------------------------------------------
+function FormSection({
+  title,
+  right,
+  children,
+}: {
+  title?: string
+  right?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section className="border-t border-border pt-5 mt-5 first:border-t-0 first:pt-0 first:mt-0 space-y-5">
+      {title && (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {title}
+          </p>
+          {right}
+        </div>
+      )}
+      {children}
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// CollapsedRow — dashed tap target that expands a section, styled to match the
+// "Add line item" button
+// ---------------------------------------------------------------------------
+function CollapsedRow({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+    >
+      <Plus size={14} />
+      <span className="truncate">{children}</span>
+    </button>
   )
 }
 
