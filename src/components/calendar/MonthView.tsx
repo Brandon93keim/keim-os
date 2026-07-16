@@ -207,7 +207,7 @@ export function MonthView({ anchorDate, selectedDate, events, tasks, onDayTap, o
                         className="absolute flex items-center overflow-hidden"
                         style={{
                           left: `calc(${(seg.startCol / 7) * 100}% + 2px)`,
-                          width: `calc(${((seg.endCol - seg.startCol + 1) / 7) * 100}% - 4px)`,
+                          width: `calc(${(seg.widthFraction / 7) * 100}% - 4px)`,
                           top: seg.lane * 18,
                           height: 16,
                           backgroundColor: seg.color,
@@ -217,9 +217,11 @@ export function MonthView({ anchorDate, selectedDate, events, tasks, onDayTap, o
                           borderBottomRightRadius: seg.continuesAfter ? 0 : 2,
                         }}
                       >
-                        <span className="truncate text-[10px] leading-tight px-1 text-white font-medium">
-                          {seg.event.title}
-                        </span>
+                        {seg.widthFraction >= 0.6 && (
+                          <span className="truncate text-[10px] leading-tight px-1 text-white font-medium">
+                            {seg.event.title}
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>

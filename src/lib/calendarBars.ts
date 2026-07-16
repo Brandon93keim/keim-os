@@ -6,6 +6,7 @@ export type BarSegment = {
   event: CalEvent
   startCol: number
   endCol: number
+  widthFraction: number // rendered span in day units (endCol - startCol)
   continuesBefore: boolean
   continuesAfter: boolean
   lane: number
@@ -17,12 +18,19 @@ export type WeekBars = {
   overflow: number[] // length-7; overflow[col] = events that didn't fit
 }
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+// Minimum rendered span (in day units) so brief events stay visible.
+const MIN_SPAN = 0.12
+// Gap tolerance (in day units) when deciding if two segments can share a lane.
+const LANE_GAP_EPSILON = 0.05
+
 export function computeWeekBars(
   events: CalEvent[],
   weekStart: Date,
   maxLanes = 3
 ): WeekBars {
   const weekEnd = endOfDay(addDays(weekStart, 6))
+  const weekStartMs = weekStart.getTime()
   const overflow = [0, 0, 0, 0, 0, 0, 0]
 
   type Candidate = Omit<BarSegment, "lane">
@@ -44,18 +52,48 @@ export function computeWeekBars(
     const continuesBefore = eventStart < weekStart
     const continuesAfter = effectiveEnd > weekEnd
 
-    const startCol = continuesBefore
-      ? 0
-      : Math.min(6, Math.max(0, differenceInCalendarDays(startOfDay(eventStart), weekStart)))
+    let startCol: number
+    let endCol: number
 
-    const endCol = continuesAfter
-      ? 6
-      : Math.min(6, Math.max(0, differenceInCalendarDays(startOfDay(effectiveEnd), weekStart)))
+    if (event.all_day) {
+      // All-day events occupy whole day cells: integer full-day spans where
+      // endCol is the exclusive right boundary (day index + 1.0).
+      startCol = continuesBefore
+        ? 0
+        : Math.min(6, Math.max(0, differenceInCalendarDays(startOfDay(eventStart), weekStart)))
+      const endDay = continuesAfter
+        ? 6
+        : Math.min(6, Math.max(0, differenceInCalendarDays(startOfDay(effectiveEnd), weekStart)))
+      endCol = endDay + 1
+    } else {
+      // Timed events map linearly midnight-to-midnight within each cell, so
+      // e.g. noon sits 0.5 into the day. Clamp to the visible week window.
+      startCol = continuesBefore
+        ? 0
+        : Math.min(7, Math.max(0, (eventStart.getTime() - weekStartMs) / MS_PER_DAY))
+      endCol = continuesAfter
+        ? 7
+        : Math.min(7, Math.max(0, (effectiveEnd.getTime() - weekStartMs) / MS_PER_DAY))
+    }
+
+    // Enforce a minimum rendered span so short events stay visible. Anchor at
+    // the start fraction, extending right; if that would overflow the day
+    // cell, shrink toward the day boundary instead.
+    if (endCol - startCol < MIN_SPAN) {
+      const dayBoundary = Math.floor(startCol) + 1
+      if (startCol + MIN_SPAN > dayBoundary) {
+        endCol = dayBoundary
+        startCol = dayBoundary - MIN_SPAN
+      } else {
+        endCol = startCol + MIN_SPAN
+      }
+    }
 
     candidates.push({
       event,
       startCol,
       endCol,
+      widthFraction: endCol - startCol,
       continuesBefore,
       continuesAfter,
       color: colorForEvent(event),
@@ -68,14 +106,16 @@ export function computeWeekBars(
     return (b.endCol - b.startCol) - (a.endCol - a.startCol)
   })
 
-  // Greedy lane assignment: laneEnd[i] = endCol of last segment in lane i
+  // Greedy lane assignment: laneEnd[i] = endCol of last segment in lane i. A
+  // segment joins a lane when it starts at/after that lane's end (within a
+  // small gap epsilon), so touching same-day events can share a lane.
   const laneEnd: number[] = []
   const segments: BarSegment[] = []
 
   for (const c of candidates) {
     let assignedLane = -1
     for (let lane = 0; lane < laneEnd.length; lane++) {
-      if (laneEnd[lane] < c.startCol) {
+      if (laneEnd[lane] - c.startCol <= LANE_GAP_EPSILON) {
         assignedLane = lane
         break
       }
@@ -83,7 +123,9 @@ export function computeWeekBars(
     if (assignedLane === -1) assignedLane = laneEnd.length
 
     if (assignedLane >= maxLanes) {
-      for (let col = c.startCol; col <= c.endCol; col++) {
+      const firstCol = Math.max(0, Math.floor(c.startCol))
+      const lastCol = Math.min(6, Math.ceil(c.endCol) - 1)
+      for (let col = firstCol; col <= lastCol; col++) {
         overflow[col]++
       }
     } else {
