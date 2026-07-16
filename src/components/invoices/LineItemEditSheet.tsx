@@ -38,7 +38,6 @@ interface Props {
   watchedBusinessId: string | null
   /** Undefined when this is the last remaining line item. */
   onRemove?: () => void
-  canRemove: boolean
 }
 
 const UNIT_TYPE_LABELS: Record<'hourly' | 'quantity' | 'flat', string> = {
@@ -81,7 +80,6 @@ function LineItemEditSheetBody({
   templates,
   watchedBusinessId,
   onRemove,
-  canRemove,
 }: BodyProps) {
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
@@ -366,15 +364,12 @@ function LineItemEditSheetBody({
         className="shrink-0 border-t border-border px-4 py-4 flex gap-3"
         style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
       >
-        {canRemove && (
+        {onRemove && (
           <Button
             type="button"
             variant="destructive"
             className="flex-1 h-11"
-            onClick={() => {
-              onRemove?.()
-              onClose()
-            }}
+            onClick={onRemove}
           >
             Remove item
           </Button>

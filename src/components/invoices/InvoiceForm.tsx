@@ -4,7 +4,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { addDays, format } from "date-fns"
-import { Bookmark, Download, GripVertical, Plus, Trash2, X } from "lucide-react"
+import { Download, GripVertical, Link, Plus } from "lucide-react"
 import { toast } from "sonner"
 import {
   DndContext,
@@ -32,8 +32,7 @@ import {
 import { BUSINESSES, getBusinessById } from "@/lib/constants"
 import { BUSINESS_IDS } from "@/lib/validations/client"
 import { useCreateInvoice, useUpdateInvoice, useMarkInvoiceSent, useJobsForLineItem } from "@/lib/hooks/useInvoices"
-import { useLineItemTemplates, useCreateLineItemTemplate } from "@/lib/hooks/useLineItemTemplates"
-import type { LineItemTemplate } from "@/lib/queries/lineItemTemplates"
+import { useLineItemTemplates } from "@/lib/hooks/useLineItemTemplates"
 import { useClients } from "@/lib/hooks/useClients"
 import { useProfile } from "@/lib/hooks/useProfile"
 import { getInvoice } from "@/lib/queries/invoices"
@@ -60,6 +59,7 @@ import {
 } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
+import { LineItemEditSheet } from "./LineItemEditSheet"
 import type { Invoice } from "@/lib/queries/invoices"
 import type { UnbilledJob } from "@/lib/queries/jobs"
 
@@ -157,6 +157,9 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
     control: form.control,
     name: "line_items",
   })
+
+  // Which line item the edit sheet is showing; null when the sheet is closed.
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
 
   // Require an ~8px drag before activating, so taps on inputs/buttons inside a
   // row don't get hijacked into a drag gesture (critical for touch/mobile).
@@ -450,17 +453,14 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
                 items={fields.map((f) => f.id)}
                 strategy={verticalListSortingStrategy}
               >
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {fields.map((fieldItem, index) => (
                     <LineItemRow
                       key={fieldItem.id}
                       id={fieldItem.id}
                       index={index}
                       form={form}
-                      availableJobs={availableJobs}
-                      templates={templates}
-                      watchedBusinessId={watchedBusinessId}
-                      onRemove={fields.length > 1 ? () => remove(index) : undefined}
+                      onEdit={() => setEditingIndex(index)}
                     />
                   ))}
                 </div>
@@ -469,7 +469,10 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
 
             <button
               type="button"
-              onClick={() => append({ id: undefined, event_id: null, description: "", quantity: 1, unit_price: 0, unit_type: 'quantity' })}
+              onClick={() => {
+                append({ id: undefined, event_id: null, description: "", quantity: 1, unit_price: 0, unit_type: 'quantity' })
+                setEditingIndex(fields.length)
+              }}
               className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
             >
               <Plus size={14} />
@@ -667,6 +670,24 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
           </div>
         </div>
       </form>
+
+      <LineItemEditSheet
+        open={editingIndex !== null}
+        index={editingIndex}
+        onClose={() => setEditingIndex(null)}
+        form={form}
+        availableJobs={availableJobs}
+        templates={templates}
+        watchedBusinessId={watchedBusinessId}
+        onRemove={
+          fields.length > 1 && editingIndex !== null
+            ? () => {
+                remove(editingIndex)
+                setEditingIndex(null)
+              }
+            : undefined
+        }
+      />
     </Form>
   )
 }
@@ -751,33 +772,18 @@ function DatePickerField({ label, value, onChange, error }: DatePickerFieldProps
 }
 
 // ---------------------------------------------------------------------------
-// LineItemRow — one row in the line items array
+// LineItemRow — one compact, read-only row in the line items array. Tapping it
+// opens LineItemEditSheet; all editing lives there.
 // ---------------------------------------------------------------------------
-interface Job {
-  id: string
-  title: string
-  job_total_amount: number | null
-  start_time: string
-}
-
 interface LineItemRowProps {
   id: string
   index: number
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: any
-  availableJobs: Job[]
-  templates: LineItemTemplate[]
-  watchedBusinessId: string | null
-  onRemove?: () => void
+  onEdit: () => void
 }
 
-const UNIT_TYPE_LABELS: Record<'hourly' | 'quantity' | 'flat', string> = {
-  hourly: 'Hours',
-  quantity: 'Qty',
-  flat: 'Flat',
-}
-
-function LineItemRow({ id, index, form, availableJobs, templates, watchedBusinessId, onRemove }: LineItemRowProps) {
+function LineItemRow({ id, index, form, onEdit }: LineItemRowProps) {
   const {
     attributes,
     listeners,
@@ -793,297 +799,74 @@ function LineItemRow({ id, index, form, availableJobs, templates, watchedBusines
     opacity: isDragging ? 0.85 : undefined,
   }
 
-  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
-  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
-  const [templateScope, setTemplateScope] = useState<string | null>(watchedBusinessId)
-  const createTemplate = useCreateLineItemTemplate()
-
   const description = (form.watch(`line_items.${index}.description`) as string) || ""
   const unitType = (form.watch(`line_items.${index}.unit_type`) || 'quantity') as 'hourly' | 'quantity' | 'flat'
   const qty = form.watch(`line_items.${index}.quantity`) || 0
   const price = form.watch(`line_items.${index}.unit_price`) || 0
   const rowTotal = Math.round(qty * price * 100) / 100
+  const eventId = form.watch(`line_items.${index}.event_id`)
 
-  const filteredTemplates = templates.filter((t) =>
-    description === "" || t.description.toLowerCase().includes(description.toLowerCase())
-  )
+  const rowErrors = form.formState.errors.line_items?.[index]
+  const errorMessage = rowErrors
+    ? (rowErrors.description?.message ?? "Incomplete item")
+    : null
 
-  function handleTemplateSelect(t: LineItemTemplate) {
-    form.setValue(`line_items.${index}.description`, t.description, { shouldValidate: true })
-    form.setValue(`line_items.${index}.unit_price`, t.default_unit_price)
-    const newType = t.unit_type ?? 'quantity'
-    form.setValue(`line_items.${index}.unit_type`, newType)
-    if (newType === 'flat') {
-      form.setValue(`line_items.${index}.quantity`, 1)
-    }
-    setSuggestionsOpen(false)
-  }
-
-  function handleUnitTypeChange(newType: 'hourly' | 'quantity' | 'flat') {
-    const prevType = form.getValues(`line_items.${index}.unit_type`) as string
-    form.setValue(`line_items.${index}.unit_type`, newType)
-    if (newType === 'flat') {
-      form.setValue(`line_items.${index}.quantity`, 1)
-    } else if (prevType === 'flat') {
-      form.setValue(`line_items.${index}.quantity`, 1)
-    }
-  }
-
-  function handleJobSelect(jobId: string) {
-    if (jobId === "__none__") {
-      form.setValue(`line_items.${index}.event_id`, null)
-      return
-    }
-    const job = availableJobs.find((j) => j.id === jobId)
-    if (!job) return
-    form.setValue(`line_items.${index}.event_id`, job.id)
-    if (!form.getValues(`line_items.${index}.description`)) {
-      form.setValue(`line_items.${index}.description`, job.title)
-    }
-    if (!form.getValues(`line_items.${index}.unit_price`) && job.job_total_amount != null) {
-      form.setValue(`line_items.${index}.unit_price`, job.job_total_amount)
-    }
-  }
-
-  function handleSaveTemplate() {
-    const normalizedDesc = description.trim().toLowerCase()
-    const duplicate = templates.some(
-      (t) => t.description.toLowerCase() === normalizedDesc && t.business_id === templateScope
-    )
-    if (duplicate) {
-      toast("Template already exists")
-      setSaveTemplateOpen(false)
-      return
-    }
-    createTemplate.mutate(
-      {
-        description: description.trim(),
-        default_unit_price: price,
-        unit_type: unitType,
-        business_id: templateScope,
-      },
-      { onSuccess: () => setSaveTemplateOpen(false) }
-    )
-  }
-
-  const currentEventId = form.watch(`line_items.${index}.event_id`)
-
-  const { onBlur: regBlur, ...descReg } = form.register(`line_items.${index}.description`)
-
-  const qtyConfig = unitType === 'hourly'
-    ? { label: 'Hours', step: 0.25, min: 0.25, placeholder: '0.25' }
-    : { label: 'Qty', step: 1, min: 1, placeholder: '1' }
+  const summary =
+    unitType === 'hourly' ? `${qty} hrs × $${price.toFixed(2)}`
+    : unitType === 'flat' ? 'Flat'
+    : `${qty} × $${price.toFixed(2)}`
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="rounded-xl border border-border bg-card p-3 space-y-2.5"
+      className={cn(
+        "flex items-center gap-2 rounded-lg border bg-card p-2.5",
+        errorMessage ? "border-destructive" : "border-border"
+      )}
     >
-      {/* Description with typeahead */}
-      <div className="flex items-start gap-2">
-        {/* Drag handle — listeners live here only, so inputs stay usable */}
-        <button
-          type="button"
-          aria-label="Reorder line item"
-          className="shrink-0 -ml-1 h-11 w-8 flex items-center justify-center self-stretch touch-none cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical size={16} />
-        </button>
-        <div className="flex-1 relative">
-          <input
-            type="text"
-            placeholder="Description *"
-            {...descReg}
-            onFocus={() => setSuggestionsOpen(true)}
-            onBlur={(e) => {
-              regBlur(e)
-              setTimeout(() => setSuggestionsOpen(false), 150)
-            }}
-            className={cn(
-              "w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-              form.formState.errors.line_items?.[index]?.description && "border-destructive"
+      {/* Drag handle — listeners live here only, so the tap target stays usable */}
+      <button
+        type="button"
+        aria-label="Reorder line item"
+        className="shrink-0 -ml-1 h-9 w-7 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical size={16} />
+      </button>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="min-w-0 flex-1 flex items-center gap-2 text-left"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span
+              className={cn(
+                "text-sm font-medium truncate",
+                !description && "text-muted-foreground font-normal"
+              )}
+            >
+              {description || "Untitled item"}
+            </span>
+            {eventId && (
+              <Link
+                size={11}
+                aria-label="Linked to job"
+                className="shrink-0 text-muted-foreground"
+              />
             )}
-          />
-          {suggestionsOpen && filteredTemplates.length > 0 && (
-            <ul className="absolute z-50 top-full mt-1 left-0 right-0 max-h-48 overflow-y-auto rounded-md border border-border bg-popover shadow-md">
-              {filteredTemplates.map((t) => (
-                <li key={t.id}>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => handleTemplateSelect(t)}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground flex items-center justify-between gap-2"
-                  >
-                    <span>{t.description}</span>
-                    <span className="text-xs text-muted-foreground shrink-0">
-                      ${t.default_unit_price.toFixed(2)} · {t.unit_type === 'hourly' ? 'hrs' : t.unit_type === 'flat' ? 'flat' : 'qty'}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+          </div>
+          <div className="text-xs text-muted-foreground">{summary}</div>
+          {errorMessage && (
+            <div className="text-xs text-destructive">{errorMessage}</div>
           )}
         </div>
-        <Popover
-          open={saveTemplateOpen}
-          onOpenChange={(open) => {
-            if (open) setTemplateScope(watchedBusinessId)
-            setSaveTemplateOpen(open)
-          }}
-        >
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              disabled={!description.trim()}
-              title="Save as template"
-              className="shrink-0 h-9 w-9 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <Bookmark size={14} />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-64 p-3 space-y-3" align="end">
-            <p className="text-xs text-muted-foreground">
-              Save{" "}
-              <span className="font-medium text-foreground">&ldquo;{description}&rdquo;</span>{" "}
-              as a template for:
-            </p>
-            <div className="flex gap-1">
-              <button
-                type="button"
-                onClick={() => setTemplateScope(watchedBusinessId)}
-                className={cn(
-                  "flex-1 h-7 rounded text-xs font-medium transition-colors border truncate px-2",
-                  templateScope !== null
-                    ? "bg-foreground text-background border-foreground"
-                    : "bg-transparent text-muted-foreground border-border hover:text-foreground"
-                )}
-              >
-                {getBusinessById(watchedBusinessId ?? "")?.name ?? "This business"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setTemplateScope(null)}
-                className={cn(
-                  "flex-1 h-7 rounded text-xs font-medium transition-colors border",
-                  templateScope === null
-                    ? "bg-foreground text-background border-foreground"
-                    : "bg-transparent text-muted-foreground border-border hover:text-foreground"
-                )}
-              >
-                All businesses
-              </button>
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              className="w-full"
-              onClick={handleSaveTemplate}
-              disabled={createTemplate.isPending}
-            >
-              Save
-            </Button>
-          </PopoverContent>
-        </Popover>
-        {onRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="shrink-0 h-9 w-9 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-          >
-            <X size={14} />
-          </button>
-        )}
-      </div>
-
-      {/* Unit type toggle */}
-      <div className="flex gap-1">
-        {(Object.keys(UNIT_TYPE_LABELS) as Array<'hourly' | 'quantity' | 'flat'>).map((type) => (
-          <button
-            key={type}
-            type="button"
-            onClick={() => handleUnitTypeChange(type)}
-            className={cn(
-              "flex-1 h-7 rounded text-xs font-medium transition-colors border",
-              unitType === type
-                ? "bg-foreground text-background border-foreground"
-                : "bg-transparent text-muted-foreground border-border hover:text-foreground"
-            )}
-          >
-            {UNIT_TYPE_LABELS[type]}
-          </button>
-        ))}
-      </div>
-
-      {/* Linked job (if jobs available) */}
-      {availableJobs.length > 0 && (
-        <Select
-          value={currentEventId ?? "__none__"}
-          onValueChange={handleJobSelect}
-        >
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue placeholder="Link to job (optional)" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">No linked job</SelectItem>
-            {availableJobs.map((job) => (
-              <SelectItem key={job.id} value={job.id}>
-                {job.title}
-                {job.job_total_amount != null ? ` — $${job.job_total_amount.toFixed(2)}` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
-
-      {/* Qty | Price | Total */}
-      <div className="flex items-center gap-2">
-        {unitType !== 'flat' && (
-          <div className="w-16">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              {qtyConfig.label}
-            </Label>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={qtyConfig.min}
-              step={qtyConfig.step}
-              placeholder={qtyConfig.placeholder}
-              {...form.register(`line_items.${index}.quantity`, { valueAsNumber: true })}
-              className="mt-0.5 w-full h-9 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring tabular-nums"
-            />
-          </div>
-        )}
-        <div className="flex-1">
-          <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Unit price</Label>
-          <div className="mt-0.5 flex items-center gap-1">
-            <span className="text-xs text-muted-foreground">$</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step={0.01}
-              placeholder="0.00"
-              {...form.register(`line_items.${index}.unit_price`, { valueAsNumber: true })}
-              className="flex-1 h-9 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring tabular-nums"
-            />
-          </div>
-        </div>
-        <div className="w-20 text-right">
-          <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Amount</Label>
-          <div className="mt-0.5 h-9 flex items-center justify-end text-sm font-semibold tabular-nums text-foreground">
-            ${rowTotal.toFixed(2)}
-          </div>
-        </div>
-      </div>
-
-      {form.formState.errors.line_items?.[index]?.description && (
-        <p className="text-xs text-destructive">
-          {form.formState.errors.line_items[index].description.message}
-        </p>
-      )}
+        <span className="shrink-0 text-sm font-semibold tabular-nums">
+          ${rowTotal.toFixed(2)}
+        </span>
+      </button>
     </div>
   )
 }
