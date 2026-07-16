@@ -5,6 +5,7 @@ import { Plus, Receipt, Search } from "lucide-react"
 import Link from "next/link"
 import { isPast, parseISO } from "date-fns"
 import { useInvoices, useUnbilledJobs } from "@/lib/hooks/useInvoices"
+import { getEffectiveStatus } from "@/lib/invoiceStatus"
 import { getBusinessById } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,7 +26,7 @@ import { CompedJobsList } from "./CompedJobsList"
 import type { InvoiceSummary } from "@/lib/queries/invoices"
 import type { UnbilledJob } from "@/lib/queries/jobs"
 
-type StatusFilter = "all" | "unbilled" | "draft" | "sent" | "paid" | "overdue"
+type StatusFilter = "all" | "unbilled" | "draft" | "unpaid" | "paid" | "overdue"
 type SortKey = "issue_date" | "due_date" | "amount" | "status"
 
 function ListSkeleton() {
@@ -76,10 +77,9 @@ function filterAndSort(
       result = result.filter(
         (inv) => inv.status === "sent" && isPast(parseISO(inv.due_date))
       )
-    } else if (status === "sent") {
-      result = result.filter(
-        (inv) => inv.status === "sent" && !isPast(parseISO(inv.due_date))
-      )
+    } else if (status === "unpaid") {
+      const unpaidStatuses = new Set(["sent", "partially_paid", "overdue"])
+      result = result.filter((inv) => unpaidStatuses.has(getEffectiveStatus(inv)))
     } else {
       result = result.filter((inv) => inv.status === status)
     }
@@ -195,7 +195,7 @@ export function InvoiceList() {
                       {unbilledCount > 0 ? `Unbilled · ${unbilledCount}` : "Unbilled"}
                     </TabsTrigger>
                     <TabsTrigger value="draft">Draft</TabsTrigger>
-                    <TabsTrigger value="sent">Sent</TabsTrigger>
+                    <TabsTrigger value="unpaid">Unpaid</TabsTrigger>
                     <TabsTrigger value="paid">Paid</TabsTrigger>
                     <TabsTrigger value="overdue">Overdue</TabsTrigger>
                   </TabsList>
