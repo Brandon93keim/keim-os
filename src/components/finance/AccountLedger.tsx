@@ -315,7 +315,7 @@ export function AccountLedger({ id }: { id: string }) {
         ) : (
           groups.map((group) => (
             <div key={group.date} className="mt-4">
-              <p className="px-4 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="bg-muted px-4 py-2 text-xs font-semibold uppercase tracking-wider text-foreground/75">
                 {group.label}
               </p>
               <div className="divide-y divide-border border-y border-border">
