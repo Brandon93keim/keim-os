@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { cn } from "@/lib/utils"
@@ -12,6 +12,7 @@ import { useBudgets } from "@/lib/hooks/useBudgets"
 import { formatCurrency } from "@/lib/finance/format"
 import { BUSINESSES } from "@/lib/constants"
 import { format, startOfMonth } from "date-fns"
+import { CreditCard } from "lucide-react"
 import type { TransactionWithRelations } from "@/lib/finance/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -149,12 +150,64 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
   }, [accountIdValue, accounts])
 
   const transferToAccount = accounts.find((a) => a.id === transferToIdValue)
-  const descriptionPlaceholder =
-    typeValue === "transfer" && accountIdValue && transferToIdValue && transferToAccount
-      ? `Transfer to ${transferToAccount.name}`
-      : undefined
 
   const otherAccounts = accounts.filter((a) => a.id !== accountIdValue)
+
+  // ---- Credit card payment shortcut -------------------------------------
+  // Not a transaction type — a labelled doorway onto the existing transfer
+  // shape (asset account → credit_card account). Purely UI state.
+  const sourceAccount = accounts.find((a) => a.id === accountIdValue)
+  const sourceIsAsset = sourceAccount?.kind === "asset"
+  const cardAccounts = otherAccounts.filter((a) => a.type === "credit_card")
+
+  // null = infer from the transaction being edited; a boolean = user's explicit choice.
+  const [cardPaymentMode, setCardPaymentMode] = useState<boolean | null>(null)
+  const isCardPayment =
+    cardPaymentMode ??
+    (typeValue === "transfer" && transferToAccount?.type === "credit_card")
+
+  // Type set aside when entering card-payment mode, restored on exit.
+  const priorTypeRef = useRef<TransactionFormValues["type"]>(typeValue)
+
+  const showCardPaymentOption =
+    !isSystemLinked && sourceIsAsset && (cardAccounts.length > 0 || isCardPayment)
+
+  function enterCardPayment() {
+    priorTypeRef.current = typeValue
+    setCardPaymentMode(true)
+    form.setValue("type", "transfer", { shouldValidate: false })
+    const currentDest = accounts.find((a) => a.id === form.getValues("transfer_to_account_id"))
+    if (currentDest?.type !== "credit_card") {
+      form.setValue(
+        "transfer_to_account_id",
+        cardAccounts.length === 1 ? cardAccounts[0].id : null,
+        { shouldValidate: false }
+      )
+    }
+  }
+
+  function exitCardPayment() {
+    setCardPaymentMode(false)
+    if (priorTypeRef.current !== "transfer") {
+      form.setValue("type", priorTypeRef.current, { shouldValidate: false })
+    }
+  }
+
+  // A liability source can't pay down a card — drop back out of the mode.
+  useEffect(() => {
+    if (cardPaymentMode && sourceAccount && sourceAccount.kind !== "asset") {
+      setCardPaymentMode(false)
+    }
+  }, [cardPaymentMode, sourceAccount])
+
+  const destinationOptions = isCardPayment ? cardAccounts : otherAccounts
+
+  const descriptionPlaceholder =
+    typeValue === "transfer" && accountIdValue && transferToIdValue && transferToAccount
+      ? isCardPayment
+        ? `Payment to ${transferToAccount.name}`
+        : `Transfer to ${transferToAccount.name}`
+      : undefined
 
   const categoryOptions = categories.filter(
     (c) => c.is_active === true && c.kind === typeValue
@@ -231,7 +284,10 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
                         key={opt.value}
                         type="button"
                         disabled={isSystemLinked}
-                        onClick={() => field.onChange(opt.value)}
+                        onClick={() => {
+                          setCardPaymentMode(false)
+                          field.onChange(opt.value)
+                        }}
                         className={cn(
                           "flex-1 rounded-md py-1.5 text-sm font-medium transition-colors",
                           field.value === opt.value
@@ -249,6 +305,44 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
               </FormItem>
             )}
           />
+
+          {/* Credit card payment — a labelled doorway onto the transfer shape */}
+          {showCardPaymentOption && (
+            <button
+              type="button"
+              onClick={isCardPayment ? exitCardPayment : enterCardPayment}
+              aria-pressed={isCardPayment}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors",
+                isCardPayment
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:bg-muted/40 active:bg-muted/60"
+              )}
+            >
+              <CreditCard
+                size={18}
+                className={cn("shrink-0", isCardPayment ? "text-primary" : "text-muted-foreground")}
+              />
+              <span className="flex-1 min-w-0">
+                <span
+                  className={cn(
+                    "block text-sm font-medium",
+                    isCardPayment ? "text-primary" : "text-foreground"
+                  )}
+                >
+                  Credit card payment
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {isCardPayment
+                    ? "Pays down the card — not an expense."
+                    : "Paying off a card from this account? Use this, not Expense."}
+                </span>
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {isCardPayment ? "Undo" : "→"}
+              </span>
+            </button>
+          )}
 
           {/* Account */}
           <FormField
@@ -283,7 +377,7 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
               name="transfer_to_account_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>To account *</FormLabel>
+                  <FormLabel>{isCardPayment ? "Card to pay *" : "To account *"}</FormLabel>
                   <Select
                     onValueChange={(v) => field.onChange(v || null)}
                     value={field.value ?? ""}
@@ -291,11 +385,13 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
                   >
                     <FormControl>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select destination" />
+                        <SelectValue
+                          placeholder={isCardPayment ? "Select credit card" : "Select destination"}
+                        />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {otherAccounts.map((acct) => (
+                      {destinationOptions.map((acct) => (
                         <SelectItem key={acct.id} value={acct.id}>
                           {acct.name}
                         </SelectItem>
