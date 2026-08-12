@@ -9,6 +9,7 @@ import {
   updateEvent as updateEventQuery,
   deleteEvent as deleteEventQuery,
   rescheduleEvent as rescheduleEventQuery,
+  rescheduleRecurringOccurrence as rescheduleRecurringOccurrenceQuery,
   updateEventStatus as updateEventStatusQuery,
   updateRecurringSingle as updateRecurringSingleQuery,
   updateRecurringFollowing as updateRecurringFollowingQuery,
@@ -97,6 +98,24 @@ export function useRescheduleEvent() {
     },
     onError: (err: Error) => {
       toast.error(err.message ?? "Failed to move event")
+    },
+  })
+}
+
+// Patches only start_time/end_time of one occurrence, by creating a
+// single-occurrence override. Drag-to-reschedule on a recurring instance uses
+// this instead of useUpdateRecurringSingle, which would need form values.
+export function useRescheduleRecurringOccurrence() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ masterId, occurrenceDate, startTime, endTime }: { masterId: string; occurrenceDate: Date; startTime: Date; endTime: Date }) =>
+      rescheduleRecurringOccurrenceQuery(masterId, occurrenceDate, startTime, endTime),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] })
+      toast.success("Occurrence moved")
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to move occurrence")
     },
   })
 }

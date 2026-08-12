@@ -8,7 +8,7 @@ import { BUSINESSES, colorForEvent, shortJobNumber } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { layoutEventsForDay, topForTime, heightForEvent, HOUR_HEIGHT } from "./eventLayout"
 import { TaskMarker } from "./TaskMarker"
-import { useRescheduleEvent } from "@/lib/hooks/useEvents"
+import { useRescheduleEvent, useRescheduleRecurringOccurrence } from "@/lib/hooks/useEvents"
 import type { CalEvent } from "@/lib/hooks/useEvents"
 import type { LayoutEvent } from "./eventLayout"
 import type { TaskWithRelations } from "@/lib/hooks/useTasks"
@@ -31,6 +31,11 @@ interface DragState {
   snappedStartMs: number
   gridStartMs: number  // origin column's rendered hour range
   gridEndMs: number
+  // Set only for a recurring instance: which series it belongs to and which
+  // occurrence was lifted. occurrenceISO is the instance's stored
+  // occurrence_date verbatim — the pre-drag slot, never recomputed.
+  masterId: string | null
+  occurrenceISO: string | null
 }
 
 interface PendingMove {
@@ -40,17 +45,14 @@ interface PendingMove {
   endMs: number
 }
 
-// Recurring instances and all-day events are tap-to-edit only for now. Events
-// that cross midnight are excluded too: a column-local drag can't move them
-// without changing which day they belong to.
+// All-day events are tap-to-edit only — they have no time slot to snap to.
+// Recurring instances do drag: a drop overrides that single occurrence. Note
+// rendered instances carry both is_recurring_instance and the master's rrule,
+// so neither can be used to exclude them. Events that cross midnight stay
+// excluded: a column-local drag can't move them without changing which day
+// they belong to.
 function canDragEvent(event: LayoutEvent): boolean {
-  return (
-    !event.all_day &&
-    !event.is_recurring_instance &&
-    !event.rrule &&
-    !event.continuesBefore &&
-    !event.continuesAfter
-  )
+  return !event.all_day && !event.continuesBefore && !event.continuesAfter
 }
 
 interface Props {
@@ -94,6 +96,7 @@ export function WeekView({ anchorDate, events, tasks, onEventTap, onPrev, onNext
   // doesn't snap back to its old slot for a frame.
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)
   const reschedule = useRescheduleEvent()
+  const rescheduleOccurrence = useRescheduleRecurringOccurrence()
   const pointerRef = useRef<{ id: number; x: number; y: number } | null>(null)
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dragRef = useRef<DragState | null>(null)
@@ -187,6 +190,8 @@ export function WeekView({ anchorDate, events, tasks, onEventTap, onPrev, onNext
         snappedStartMs: startMs,
         gridStartMs,
         gridEndMs,
+        masterId: event.is_recurring_instance ? event.master_id ?? null : null,
+        occurrenceISO: event.is_recurring_instance ? event.occurrence_date ?? null : null,
       }
       dragRef.current = state
       dragActiveRef.current = true
@@ -244,8 +249,20 @@ export function WeekView({ anchorDate, events, tasks, onEventTap, onPrev, onNext
       startMs: startTime.getTime(),
       endMs: endTime.getTime(),
     })
-    reschedule
-      .mutateAsync({ id: state.eventId, startTime, endTime })
+
+    // A recurring instance commits as a single-occurrence override keyed on the
+    // pre-drag slot; everything else is a plain row patch.
+    const commit =
+      state.masterId && state.occurrenceISO
+        ? rescheduleOccurrence.mutateAsync({
+            masterId: state.masterId,
+            occurrenceDate: new Date(state.occurrenceISO),
+            startTime,
+            endTime,
+          })
+        : reschedule.mutateAsync({ id: state.eventId, startTime, endTime })
+
+    commit
       .catch(() => { /* hook surfaces the error toast */ })
       .finally(() => setPendingMove(null))
   }

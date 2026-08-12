@@ -477,6 +477,87 @@ export async function updateRecurringSingle(
   }
 }
 
+// Move a single occurrence of a recurring series in time, without touching any
+// other field. Drag-to-reschedule uses this instead of updateRecurringSingle,
+// which would need form values it has no way to rebuild. Every non-time field
+// is copied off the master row, so nothing can be silently dropped.
+export async function rescheduleRecurringOccurrence(
+  masterId: string,
+  occurrenceDate: Date,
+  startTime: Date,
+  endTime: Date
+): Promise<void> {
+  const supabase = createClient()
+  const userId = await getUserId()
+  const occISO = occurrenceDate.toISOString()
+
+  // Remove any existing modified override for this occurrence.
+  await supabase
+    .from("events")
+    .delete()
+    .eq("parent_event_id", masterId)
+    .eq("original_occurrence_date", occISO)
+
+  // Source every content field from the master row.
+  const { data: master, error: fetchErr } = await supabase
+    .from("events")
+    .select(
+      "type, title, business_id, client_id, meeting_purpose, golf_purpose, all_day, location, description, color_override, reminder_for_client_id"
+    )
+    .eq("id", masterId)
+    .single()
+  if (fetchErr) throw fetchErr
+  if (!master) throw new Error("Master event not found")
+
+  // Insert override event carrying the master's content and the dragged times.
+  const { data: overrideRow, error: insertErr } = await supabase
+    .from("events")
+    .insert({
+      user_id: userId,
+      type: master.type,
+      title: master.title,
+      business_id: master.business_id,
+      client_id: master.client_id,
+      meeting_purpose: master.meeting_purpose,
+      golf_purpose: master.golf_purpose,
+      all_day: master.all_day,
+      location: master.location,
+      description: master.description,
+      color_override: master.color_override,
+      reminder_for_client_id: master.reminder_for_client_id,
+      start_time: startTime.toISOString(),
+      end_time: endTime.toISOString(),
+      parent_event_id: masterId,
+      original_occurrence_date: occISO,
+      rrule: null,
+      recurrence_end_date: null,
+    })
+    .select("id")
+    .single()
+  if (insertErr) throw insertErr
+
+  // Remove any existing exception row for this date, then insert fresh.
+  await supabase
+    .from("event_exceptions")
+    .delete()
+    .eq("event_id", masterId)
+    .eq("original_occurrence_date", occISO)
+
+  const { error: exErr } = await supabase.from("event_exceptions").insert({
+    user_id: userId,
+    event_id: masterId,
+    original_occurrence_date: occISO,
+    action: "modified",
+    modified_event_id: overrideRow.id,
+  })
+
+  if (exErr) {
+    // Rollback override row on exception insert failure.
+    await supabase.from("events").delete().eq("id", overrideRow.id)
+    throw exErr
+  }
+}
+
 // Edit ── this and following (truncates master, inserts new tail-series master).
 export async function updateRecurringFollowing(
   masterId: string,
