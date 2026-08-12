@@ -1107,6 +1107,10 @@ export type Database = {
           updated_at: string
         }
       }
+      delete_account: {
+        Args: { p_account_id: string }
+        Returns: undefined
+      }
       generate_invoice_number: {
         Args: { p_business_id: string; p_job_id?: string }
         Returns: string

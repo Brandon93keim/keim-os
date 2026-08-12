@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { cn } from "@/lib/utils"
 import { accountFormSchema, type AccountFormValues } from "@/lib/finance/schemas"
 import { getAccountTransactionCount } from "@/lib/queries/finance"
-import { useCreateAccount, useUpdateAccount } from "@/lib/hooks/useAccounts"
+import { useCreateAccount, useUpdateAccount, useDeleteAccount } from "@/lib/hooks/useAccounts"
 import { BUSINESSES } from "@/lib/constants"
 import type { AccountWithBalance } from "@/lib/finance/types"
 import { Button } from "@/components/ui/button"
@@ -48,9 +49,12 @@ interface Props {
 }
 
 export function AccountForm({ account, onSuccess, onCancel }: Props) {
+  const router = useRouter()
   const createAccount = useCreateAccount()
   const updateAccount = useUpdateAccount()
+  const deleteAccount = useDeleteAccount()
   const [hasTransactions, setHasTransactions] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
@@ -100,6 +104,19 @@ export function AccountForm({ account, onSuccess, onCancel }: Props) {
     hasTransactions &&
     originalBalance !== null &&
     currentBalance !== originalBalance
+
+  function handleDelete() {
+    if (!account) return
+    deleteAccount.mutate(account.id, {
+      onSuccess: () => {
+        // The deleted account's ledger route is gone, so leave it before closing.
+        onSuccess()
+        router.push("/money")
+      },
+    })
+    // On failure the mutation's error toast carries the RPC's reason and the
+    // account is left untouched, so the confirm stays open for a retry.
+  }
 
   async function onSubmit(values: AccountFormValues) {
     if (account) {
@@ -291,6 +308,51 @@ export function AccountForm({ account, onSuccess, onCancel }: Props) {
                 </FormItem>
               )}
             />
+          )}
+
+          {/* Permanent delete — edit mode only, separate from the deactivate toggle */}
+          {account && (
+            <div className="border-t border-border pt-5">
+              {showDeleteConfirm ? (
+                <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-3 space-y-2">
+                  <p className="text-sm text-destructive">
+                    Permanently delete {account.name}? This account and its transactions
+                    will be removed for good. Any payments made from other accounts to pay
+                    it off are kept in those accounts.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleDelete}
+                      disabled={deleteAccount.isPending}
+                      className="flex-1"
+                    >
+                      {deleteAccount.isPending ? "Deleting…" : "Yes, delete"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="flex-1"
+                    >
+                      Keep it
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="w-full h-11"
+                >
+                  Delete account
+                </Button>
+              )}
+            </div>
           )}
         </div>
 

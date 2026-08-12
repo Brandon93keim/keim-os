@@ -77,6 +77,15 @@ export async function setAccountActive(id: string, is_active: boolean): Promise<
   if (error) throw error
 }
 
+// Permanent delete. The RPC removes the account and its ledger atomically and
+// raises if the account funded transfers into other accounts, so surface its
+// message verbatim rather than deleting anything from the client.
+export async function deleteAccount(id: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.rpc("delete_account", { p_account_id: id })
+  if (error) throw new Error(error.message)
+}
+
 export async function getAccountTransactionCount(id: string): Promise<number> {
   const supabase = createClient()
   const { count, error } = await supabase
