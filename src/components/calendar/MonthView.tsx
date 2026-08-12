@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useMemo } from "react"
-import { isSameDay, isToday, isSameMonth, format, addMonths, startOfMonth } from "date-fns"
+import { isSameDay, isToday, isSameMonth, format, startOfMonth } from "date-fns"
 import { getCalendarDays } from "@/lib/date"
 import { getBusinessById } from "@/lib/constants"
 import { getEffectiveTaskStatus, STATUS_COLORS } from "@/lib/taskStatus"
@@ -12,9 +12,6 @@ import type { CalEvent } from "@/lib/hooks/useEvents"
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const MAX_DOTS = 4
-// Months either side of today offered in the strip. Matches the ±12-month query
-// window in Calendar.tsx — months past it have no event data loaded.
-const MONTH_RANGE = 12
 
 function getMonthTint(date: Date): string {
   const hue = (date.getMonth() * 30) % 360
@@ -38,10 +35,13 @@ export function MonthView({ anchorDate, selectedDate, events, tasks, onDayTap, o
   const month = useMemo(() => startOfMonth(anchorDate), [anchorDate])
   const weeks = useMemo(() => chunkIntoWeeks(getCalendarDays(month)), [month])
 
-  const stripMonths = useMemo(() => {
-    const base = startOfMonth(new Date())
-    return Array.from({ length: MONTH_RANGE * 2 + 1 }, (_, i) => addMonths(base, i - MONTH_RANGE))
-  }, [])
+  // Twelve chips for the selected year only — the header's year selector
+  // carries the year, so the strip needs no year text of its own.
+  const year = anchorDate.getFullYear()
+  const stripMonths = useMemo(
+    () => Array.from({ length: 12 }, (_, i) => new Date(year, i, 1)),
+    [year]
+  )
 
   const stripRef = useRef<HTMLDivElement>(null)
   const chipRefs = useRef<(HTMLButtonElement | null)[]>([])
@@ -52,10 +52,7 @@ export function MonthView({ anchorDate, selectedDate, events, tasks, onDayTap, o
   useEffect(() => {
     const strip = stripRef.current
     if (!strip) return
-    const idx = stripMonths.findIndex((m) => isSameMonth(m, anchorDate))
-    // Anchor outside the data window (header arrows / picker) — leave the strip put.
-    if (idx === -1) return
-    const chip = chipRefs.current[idx]
+    const chip = chipRefs.current[anchorDate.getMonth()]
     if (!chip) return
     strip.scrollTo({
       left: chip.offsetLeft - strip.clientWidth / 2 + chip.offsetWidth / 2,
@@ -105,9 +102,6 @@ export function MonthView({ anchorDate, selectedDate, events, tasks, onDayTap, o
       >
         {stripMonths.map((m, i) => {
           const active = isSameMonth(m, anchorDate)
-          // Year shown at each January and on the first chip, so scrolling
-          // across a December/January boundary still reads unambiguously.
-          const showYear = m.getMonth() === 0 || i === 0
           return (
             <button
               key={format(m, "yyyy-MM")}
@@ -121,7 +115,7 @@ export function MonthView({ anchorDate, selectedDate, events, tasks, onDayTap, o
                   : "text-muted-foreground active:bg-muted"
               )}
             >
-              {showYear ? format(m, "MMM yyyy") : format(m, "MMM")}
+              {format(m, "MMM")}
             </button>
           )
         })}

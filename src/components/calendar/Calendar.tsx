@@ -58,10 +58,13 @@ export function Calendar() {
   // Compute query window based on view
   const queryWindow = (() => {
     if (view === "month") {
-      // Fixed ±12-month window centered on today — covers the month strip's range
-      const base = startOfDay(new Date())
-      const firstDay = getCalendarDays(subMonths(base, 12))[0]
-      const lastDay = getCalendarDays(addMonths(base, 12))[41]
+      // The whole selected year, from January's calendar-grid start to
+      // December's grid end so spillover cells at both edges have data.
+      // Stepping months inside the year reuses this window; only a year
+      // change moves it, and the query key follows.
+      const year = anchorDate.getFullYear()
+      const firstDay = getCalendarDays(new Date(year, 0, 1))[0]
+      const lastDay = getCalendarDays(new Date(year, 11, 1))[41]
       return { start: firstDay, end: addDays(lastDay, 1) }
     }
     if (view === "week") {
@@ -76,6 +79,16 @@ export function Calendar() {
 
   function goToToday() {
     setAnchorDate(startOfDay(new Date()))
+    setSelectedDate(null)
+  }
+
+  // Year selector: only the year moves. The day is clamped so Feb 29 in a leap
+  // year lands on Feb 28 rather than rolling into March.
+  function goToYear(year: number) {
+    setAnchorDate((d) => {
+      const lastDayOfMonth = new Date(year, d.getMonth() + 1, 0).getDate()
+      return new Date(year, d.getMonth(), Math.min(d.getDate(), lastDayOfMonth))
+    })
     setSelectedDate(null)
   }
 
@@ -168,7 +181,7 @@ export function Calendar() {
         view={view}
         anchorDate={anchorDate}
         onViewChange={(v) => { setView(v); setSelectedDate(null) }}
-        onAnchorChange={(d) => { setAnchorDate(d); setSelectedDate(null) }}
+        onYearChange={goToYear}
         onToday={goToToday}
         onPrev={goPrev}
         onNext={goNext}
