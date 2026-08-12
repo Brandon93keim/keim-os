@@ -368,6 +368,24 @@ export async function deleteEvent(id: string): Promise<void> {
   if (error) throw error
 }
 
+// Move a non-recurring event in time without touching any other field.
+// Used by drag-to-reschedule, which has no form values to rebuild from.
+export async function rescheduleEvent(
+  id: string,
+  startTime: Date,
+  endTime: Date
+): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from("events")
+    .update({
+      start_time: startTime.toISOString(),
+      end_time: endTime.toISOString(),
+    })
+    .eq("id", id)
+  if (error) throw error
+}
+
 export async function updateEventStatus(
   id: string,
   status: string

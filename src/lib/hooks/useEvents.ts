@@ -8,6 +8,7 @@ import {
   createEvent,
   updateEvent as updateEventQuery,
   deleteEvent as deleteEventQuery,
+  rescheduleEvent as rescheduleEventQuery,
   updateEventStatus as updateEventStatusQuery,
   updateRecurringSingle as updateRecurringSingleQuery,
   updateRecurringFollowing as updateRecurringFollowingQuery,
@@ -79,6 +80,23 @@ export function useDeleteEvent() {
     },
     onError: (err: Error) => {
       toast.error(err.message ?? "Failed to delete event")
+    },
+  })
+}
+
+// Patches only start_time/end_time. Drag-to-reschedule uses this instead of
+// useUpdateEvent so a move never has to reconstruct the whole event form.
+export function useRescheduleEvent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, startTime, endTime }: { id: string; startTime: Date; endTime: Date }) =>
+      rescheduleEventQuery(id, startTime, endTime),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] })
+      toast.success("Event moved")
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to move event")
     },
   })
 }
