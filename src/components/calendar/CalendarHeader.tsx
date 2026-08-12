@@ -39,50 +39,59 @@ export function CalendarHeader({
           Today
         </Button>
 
-        {/* Month view carries the month in the strip, so the header slot
-            holds the year selector instead of a month/year label. */}
+        {/* Month view carries the month in the strip and the year beside the
+            view toggle, so the centred slot is empty there. */}
         <div className="flex-1 flex justify-center min-w-0">
-          {view === "month" ? (
-            <YearSelector anchorDate={anchorDate} onSelectYear={onYearChange} />
-          ) : (
+          {view !== "month" && (
             <span className="text-sm font-semibold leading-tight truncate">
               {view === "week" ? formatWeekRange(anchorDate) : formatDate(anchorDate)}
             </span>
           )}
         </div>
 
-        <div className="flex items-center rounded-lg border border-border overflow-hidden">
-          {VIEWS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => onViewChange(key)}
-              className={cn(
-                "px-2.5 py-1 text-xs font-medium transition-colors",
-                view === key
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-transparent text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {label}
-            </button>
-          ))}
+        {/* Year selector and view toggle read as one control cluster. */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {view === "month" && (
+            <YearSelector anchorDate={anchorDate} onSelectYear={onYearChange} />
+          )}
+
+          <div className="flex items-center rounded-lg border border-border overflow-hidden">
+            {VIEWS.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => onViewChange(key)}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-medium transition-colors",
+                  view === key
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-3 pb-1.5">
-        <button
-          onClick={onPrev}
-          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground active:opacity-70"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <button
-          onClick={onNext}
-          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground active:opacity-70"
-        >
-          <ChevronRight size={18} />
-        </button>
-      </div>
+      {/* Month view navigates by strip and year selector, so the arrows are
+          week/day only. */}
+      {view !== "month" && (
+        <div className="flex items-center justify-between px-3 pb-1.5">
+          <button
+            onClick={onPrev}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground active:opacity-70"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            onClick={onNext}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground active:opacity-70"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

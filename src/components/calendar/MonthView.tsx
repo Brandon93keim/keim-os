@@ -121,15 +121,17 @@ export function MonthView({ anchorDate, selectedDate, events, tasks, onDayTap, o
         })}
       </div>
 
+      {/* The month fills the viewport exactly and never scrolls: the app shell
+          already reserves --bottom-nav-clearance, so the height this column
+          inherits stops clear of the bottom nav. */}
       <div
-        className="flex-1 overflow-y-auto"
+        className="flex-1 min-h-0 flex flex-col overflow-hidden"
         style={{ touchAction: "pan-y" }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Sticky day-name header */}
-        <div className="sticky top-0 z-10 grid grid-cols-7 bg-background border-b border-border">
+        <div className="shrink-0 grid grid-cols-7 bg-background border-b border-border">
           {DAY_NAMES.map((name) => (
             <div
               key={name}
@@ -140,13 +142,21 @@ export function MonthView({ anchorDate, selectedDate, events, tasks, onDayTap, o
           ))}
         </div>
 
-        <div style={{ backgroundColor: getMonthTint(month) }}>
+        <div
+          className="flex-1 min-h-0 flex flex-col"
+          style={{ backgroundColor: getMonthTint(month) }}
+        >
           {weeks.map((week, weekIdx) => {
             const weekStart = week[0]
             const { segments, overflow } = computeWeekBars(events, weekStart)
 
             return (
-              <div key={format(weekStart, "yyyy-MM-dd")} className="relative grid grid-cols-7 min-h-[90px]">
+              // Rows split the leftover height evenly, so the grid ends flush
+              // with the viewport whatever number of weeks a month spans.
+              <div
+                key={format(weekStart, "yyyy-MM-dd")}
+                className="relative grid grid-cols-7 flex-1 min-h-0"
+              >
                 {week.map((day, colIdx) => {
                   const dayStr = format(day, "yyyy-MM-dd")
                   const dayTasks = tasks.filter((t) => t.due_on === dayStr)
