@@ -42,6 +42,9 @@ export const transactionFormSchema = z
       .max(200, "Description must be 200 characters or fewer"),
     business_id: z.string().nullable(),
     category_id: z.string().uuid().nullable(),
+    // Defaults false via the form's defaultValues — a zod .default() here would
+    // split the schema's input/output types and break the resolver's typing.
+    excluded_from_pnl: z.boolean(),
     notes: z
       .string()
       .max(500, "Notes must be 500 characters or fewer")

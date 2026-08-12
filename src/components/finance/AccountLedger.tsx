@@ -111,6 +111,15 @@ function TransactionRow({
             />
           )}
           <p className="font-medium truncate">{transaction.description}</p>
+          {/* Still in the balance above — just not in P&L. */}
+          {transaction.excluded_from_pnl && (
+            <span
+              title="Excluded from profit and loss"
+              className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+            >
+              Excluded
+            </span>
+          )}
         </div>
         {transaction.type === "transfer" && (
           <p className="text-xs text-muted-foreground mt-0.5">

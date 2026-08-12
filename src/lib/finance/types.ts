@@ -31,6 +31,9 @@ export type Transaction = {
   payment_id: string | null;
   bill_payment_id: string | null;
   source_transaction_id: string | null;
+  // Hides the row from P&L, drill-downs, and budget spend. The money still
+  // moved, so account balances and ledgers always include it.
+  excluded_from_pnl: boolean;
   notes: string | null;
   created_at: string;
   updated_at: string;

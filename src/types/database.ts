@@ -720,6 +720,7 @@ export type Database = {
           payment_id: string | null
           bill_payment_id: string | null
           source_transaction_id: string | null
+          excluded_from_pnl: boolean
           notes: string | null
           created_at: string
           updated_at: string
@@ -739,6 +740,7 @@ export type Database = {
           payment_id?: string | null
           bill_payment_id?: string | null
           source_transaction_id?: string | null
+          excluded_from_pnl?: boolean
           notes?: string | null
           created_at?: string
           updated_at?: string
@@ -758,6 +760,7 @@ export type Database = {
           payment_id?: string | null
           bill_payment_id?: string | null
           source_transaction_id?: string | null
+          excluded_from_pnl?: boolean
           notes?: string | null
           created_at?: string
           updated_at?: string

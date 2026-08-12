@@ -144,6 +144,7 @@ export async function createTransaction(values: TransactionFormValues): Promise<
     description: values.description,
     business_id: values.type === "transfer" ? null : values.business_id,
     category_id: values.type === "transfer" ? null : values.category_id,
+    excluded_from_pnl: values.type === "transfer" ? false : values.excluded_from_pnl,
     notes: values.notes,
   })
   if (error) throw error
@@ -180,6 +181,7 @@ export async function updateTransaction(
         description: values.description,
         business_id: values.type === "transfer" ? null : values.business_id,
         category_id: values.type === "transfer" ? null : values.category_id,
+        excluded_from_pnl: values.type === "transfer" ? false : values.excluded_from_pnl,
         notes: values.notes,
       }
 
@@ -196,6 +198,9 @@ export async function deleteTransaction(id: string): Promise<void> {
   if (error) throw error
 }
 
+// The single source for every P&L-shaped number — the business P&L, the income
+// review, and budget "spent" all derive from this. Rows flagged
+// excluded_from_pnl drop out here, which is what keeps them off all three.
 export async function listPnLTransactions(
   dateFrom: string,
   dateTo: string
@@ -215,6 +220,7 @@ export async function listPnLTransactions(
     `)
     .eq("user_id", user.id)
     .in("type", ["income", "expense"])
+    .eq("excluded_from_pnl", false)
     .gte("occurred_on", dateFrom)
     .lte("occurred_on", dateTo)
     .order("occurred_on", { ascending: false })
@@ -224,7 +230,8 @@ export async function listPnLTransactions(
 }
 
 // "personal" → business_id IS NULL; any other string → business_id = that UUID.
-// Only returns income/expense (no transfers) so the summary reconciles with P&L rows.
+// Only returns income/expense (no transfers), and skips excluded_from_pnl rows,
+// so the summary reconciles with P&L rows.
 export async function listDrillDownTransactions(
   businessParam: string,
   dateFrom: string,
@@ -245,6 +252,7 @@ export async function listDrillDownTransactions(
     `)
     .eq("user_id", user.id)
     .in("type", ["income", "expense"])
+    .eq("excluded_from_pnl", false)
     .gte("occurred_on", dateFrom)
     .lte("occurred_on", dateTo)
     .order("occurred_on", { ascending: false })

@@ -97,6 +97,7 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
           description: transaction.description,
           business_id: transaction.business_id,
           category_id: transaction.category_id,
+          excluded_from_pnl: transaction.excluded_from_pnl ?? false,
           notes: transaction.notes,
         }
       : {
@@ -108,6 +109,7 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
           description: defaults?.description ?? "",
           business_id: null,
           category_id: null,
+          excluded_from_pnl: false,
           notes: null,
         },
   })
@@ -244,6 +246,8 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
       transfer_to_account_id: values.type === "transfer" ? values.transfer_to_account_id : null,
       business_id: values.type === "transfer" ? null : values.business_id,
       category_id: values.type === "transfer" ? null : values.category_id,
+      // Transfers never reach P&L, so the flag is meaningless on them.
+      excluded_from_pnl: values.type === "transfer" ? false : values.excluded_from_pnl,
     }
     if (transaction) {
       updateTransaction.mutate({ id: transaction.id, values: payload }, { onSuccess })
@@ -559,6 +563,46 @@ export function TransactionForm({ transaction, defaults, onSuccess, onCancel }: 
                       {formatCurrency(budgetRow.limit)} this month
                     </p>
                   )}
+                </FormItem>
+              )}
+            />
+          )}
+
+          {/* Exclude from P&L (hidden for transfer — transfers never hit P&L) */}
+          {typeValue !== "transfer" && (
+            <FormField
+              control={form.control}
+              name="excluded_from_pnl"
+              render={({ field }) => (
+                <FormItem className="flex items-start justify-between gap-4">
+                  <span className="flex-1 min-w-0">
+                    <FormLabel className="mb-0">Exclude from P&amp;L</FormLabel>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      Keeps this in the account balance but out of profit and loss — for
+                      reconciliation adjustments and balance-sheet payments.
+                    </span>
+                  </span>
+                  <FormControl>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={field.value}
+                      disabled={isSystemLinked}
+                      onClick={() => field.onChange(!field.value)}
+                      className={cn(
+                        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
+                        field.value ? "bg-primary" : "bg-muted",
+                        isSystemLinked && "cursor-not-allowed opacity-60"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
+                          field.value ? "translate-x-6" : "translate-x-1"
+                        )}
+                      />
+                    </button>
+                  </FormControl>
                 </FormItem>
               )}
             />
