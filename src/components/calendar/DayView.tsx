@@ -18,7 +18,11 @@ const DEFAULT_HOURS = Array.from({ length: 17 }, (_, i) => i + 6)
 
 // Drag-to-reschedule tuning.
 const LONG_PRESS_MS = 280
-const MOVE_CANCEL_PX = 8
+// Only a clearly horizontal drift aborts the pending lift — that's the one
+// gesture still worth handing back (swipe to the prev/next day). Vertical drift
+// no longer cancels: the event sets touch-action: none, so the browser is never
+// going to steal a downward move for scrolling.
+const SWIPE_ESCAPE_PX = 12
 const MINUTE_MS = 60_000
 const FIFTEEN_MIN_MS = 15 * MINUTE_MS
 
@@ -227,9 +231,11 @@ export function DayView({ anchorDate, events, tasks, onEventTap, onSlotTap, onPr
     const dx = e.clientX - pointer.x
     const dy = e.clientY - pointer.y
 
-    // Moved before the press landed — hand the gesture back to scroll/swipe-nav.
+    // Swiped sideways before the press landed — hand the gesture back to
+    // swipe-nav. A vertical or ambiguous drift keeps the hold alive; the timer
+    // is the only thing that decides whether this becomes a drag.
     if (!dragRef.current) {
-      if (Math.abs(dx) > MOVE_CANCEL_PX || Math.abs(dy) > MOVE_CANCEL_PX) {
+      if (Math.abs(dx) > SWIPE_ESCAPE_PX && Math.abs(dx) > Math.abs(dy) * 1.5) {
         clearLongPress()
         pointerRef.current = null
       }
@@ -487,6 +493,12 @@ export function DayView({ anchorDate, events, tasks, onEventTap, onSlotTap, onPr
                   borderLeft: `3px solid ${colors.border}`,
                   backgroundColor: colors.bg,
                   color: colors.text,
+                  // Safari locks touch-action in at gesture start, so this has
+                  // to be here statically — flipping it once the long-press
+                  // lifts is far too late. Without it the button inherits the
+                  // scroller's pan-y and a straight-down move is claimed as a
+                  // scroll (pointercancel) before the hold ever completes.
+                  ...(draggable ? { touchAction: "none" as const } : null),
                   ...(isDragging
                     ? {
                         zIndex: 30,
