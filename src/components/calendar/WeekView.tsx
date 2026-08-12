@@ -1,15 +1,53 @@
 "use client"
 
-import { useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { format, isToday, isSameDay } from "date-fns"
 import { Repeat } from "lucide-react"
-import { getWeekDays, HOURS_IN_VIEW } from "@/lib/date"
+import { getWeekDays, HOURS_IN_VIEW, roundToNearest15 } from "@/lib/date"
 import { BUSINESSES, colorForEvent, shortJobNumber } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { layoutEventsForDay, topForTime, heightForEvent, HOUR_HEIGHT } from "./eventLayout"
 import { TaskMarker } from "./TaskMarker"
+import { useRescheduleEvent } from "@/lib/hooks/useEvents"
 import type { CalEvent } from "@/lib/hooks/useEvents"
+import type { LayoutEvent } from "./eventLayout"
 import type { TaskWithRelations } from "@/lib/hooks/useTasks"
+
+// Drag-to-reschedule tuning — kept in step with DayView.
+const LONG_PRESS_MS = 280
+const MOVE_CANCEL_PX = 8
+const MINUTE_MS = 60_000
+const FIFTEEN_MIN_MS = 15 * MINUTE_MS
+
+interface DragState {
+  eventId: string
+  dayKey: string       // the column the event was lifted from; it never leaves it
+  startMs: number      // the event's original start
+  durationMs: number
+  snappedStartMs: number
+  gridStartMs: number  // origin column's rendered hour range
+  gridEndMs: number
+}
+
+interface PendingMove {
+  eventId: string
+  dayKey: string
+  startMs: number
+  endMs: number
+}
+
+// Recurring instances and all-day events are tap-to-edit only for now. Events
+// that cross midnight are excluded too: a column-local drag can't move them
+// without changing which day they belong to.
+function canDragEvent(event: LayoutEvent): boolean {
+  return (
+    !event.all_day &&
+    !event.is_recurring_instance &&
+    !event.rrule &&
+    !event.continuesBefore &&
+    !event.continuesAfter
+  )
+}
 
 interface Props {
   anchorDate: Date
@@ -46,6 +84,21 @@ export function WeekView({ anchorDate, events, tasks, onEventTap, onPrev, onNext
   const totalHeight = HOURS_IN_VIEW.length * HOUR_HEIGHT
   const today = format(new Date(), "yyyy-MM-dd")
 
+  // ── Drag-to-reschedule state ──────────────────────────────────────────────
+  const [drag, setDrag] = useState<DragState | null>(null)
+  // Holds the dropped position until the refetch catches up, so the event
+  // doesn't snap back to its old slot for a frame.
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)
+  const reschedule = useRescheduleEvent()
+  const pointerRef = useRef<{ id: number; x: number; y: number } | null>(null)
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dragRef = useRef<DragState | null>(null)
+  // True from drag activation until the gesture's touchend, so the container's
+  // swipe-nav/scroll handlers stay out of the way.
+  const dragActiveRef = useRef(false)
+  const suppressClickRef = useRef(false)
+  const suppressClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const allDayEvents = events.filter((e) => e.all_day)
   const hasAllDayEvents = allDayEvents.length > 0
   const hasWeekTasks = days.some((d) =>
@@ -54,12 +107,162 @@ export function WeekView({ anchorDate, events, tasks, onEventTap, onPrev, onNext
   const showAllDayRow = hasAllDayEvents || hasWeekTasks
   const timedNonReminderEvents = events.filter((e) => e.type !== "reminder" && !e.all_day)
 
+  // While a drag is live, block the browser's own scrolling. React's touchmove
+  // listener is passive at the root, so this has to be a native non-passive one.
+  const dragging = drag !== null
+  useEffect(() => {
+    if (!dragging) return
+    const prevent = (e: TouchEvent) => e.preventDefault()
+    document.addEventListener("touchmove", prevent, { passive: false })
+    return () => document.removeEventListener("touchmove", prevent)
+  }, [dragging])
+
+  useEffect(() => {
+    return () => {
+      if (longPressRef.current) clearTimeout(longPressRef.current)
+      if (suppressClickTimerRef.current) clearTimeout(suppressClickTimerRef.current)
+    }
+  }, [])
+
+  function clearLongPress() {
+    if (longPressRef.current) {
+      clearTimeout(longPressRef.current)
+      longPressRef.current = null
+    }
+  }
+
+  // Swallow the synthetic click the browser may fire after a drag release.
+  function suppressNextClick() {
+    suppressClickRef.current = true
+    if (suppressClickTimerRef.current) clearTimeout(suppressClickTimerRef.current)
+    suppressClickTimerRef.current = setTimeout(() => {
+      suppressClickRef.current = false
+      suppressClickTimerRef.current = null
+    }, 350)
+  }
+
+  // Vertical pixels → minutes (HOUR_HEIGHT px == 60 min), snapped to :15 and
+  // clamped to the origin column's hour range. Pointer x never participates, so
+  // the event can only move in time, never across days.
+  function snappedStartFor(deltaPx: number, state: DragState): number {
+    const deltaMs = (deltaPx / HOUR_HEIGHT) * 60 * MINUTE_MS
+    let ms = roundToNearest15(new Date(state.startMs + deltaMs)).getTime()
+    const maxStartMs = state.gridEndMs - state.durationMs
+    if (ms > maxStartMs) ms = Math.floor(maxStartMs / FIFTEEN_MIN_MS) * FIFTEEN_MIN_MS
+    if (ms < state.gridStartMs) ms = state.gridStartMs
+    return ms
+  }
+
+  function handleEventPointerDown(
+    e: React.PointerEvent<HTMLButtonElement>,
+    event: LayoutEvent,
+    dayKey: string,
+    gridStartMs: number,
+    gridEndMs: number
+  ) {
+    if (dragRef.current) return   // a drag already owns the gesture
+    dragActiveRef.current = false
+    if (!canDragEvent(event)) return
+    if (e.pointerType === "mouse" && e.button !== 0) return
+
+    const el = e.currentTarget
+    const pointerId = e.pointerId
+    const startMs = new Date(event.start_time).getTime()
+    const durationMs = Math.max(new Date(event.end_time).getTime() - startMs, FIFTEEN_MIN_MS)
+    pointerRef.current = { id: pointerId, x: e.clientX, y: e.clientY }
+
+    clearLongPress()
+    longPressRef.current = setTimeout(() => {
+      longPressRef.current = null
+      if (!pointerRef.current || pointerRef.current.id !== pointerId) return
+      const state: DragState = {
+        eventId: event.id,
+        dayKey,
+        startMs,
+        durationMs,
+        snappedStartMs: startMs,
+        gridStartMs,
+        gridEndMs,
+      }
+      dragRef.current = state
+      dragActiveRef.current = true
+      setDrag(state)
+      try { el.setPointerCapture(pointerId) } catch { /* capture is best-effort */ }
+      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+        navigator.vibrate(10)
+      }
+    }, LONG_PRESS_MS)
+  }
+
+  function handleEventPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
+    const pointer = pointerRef.current
+    if (!pointer || pointer.id !== e.pointerId) return
+    const dx = e.clientX - pointer.x
+    const dy = e.clientY - pointer.y
+
+    // Moved before the press landed — hand the gesture back to scroll/swipe-nav.
+    if (!dragRef.current) {
+      if (Math.abs(dx) > MOVE_CANCEL_PX || Math.abs(dy) > MOVE_CANCEL_PX) {
+        clearLongPress()
+        pointerRef.current = null
+      }
+      return
+    }
+
+    const next = snappedStartFor(dy, dragRef.current)
+    if (next !== dragRef.current.snappedStartMs) {
+      dragRef.current = { ...dragRef.current, snappedStartMs: next }
+      setDrag(dragRef.current)
+    }
+  }
+
+  function handleEventPointerUp(e: React.PointerEvent<HTMLButtonElement>) {
+    // Only the pointer that started the gesture can end it.
+    if (pointerRef.current && pointerRef.current.id !== e.pointerId) return
+    clearLongPress()
+    const state = dragRef.current
+    pointerRef.current = null
+    dragRef.current = null
+    if (!state) return   // never lifted — it was a tap, onClick opens the sheet
+
+    setDrag(null)
+    suppressNextClick()
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* already released */ }
+
+    if (state.snappedStartMs === state.startMs) return
+    const startTime = new Date(state.snappedStartMs)
+    const endTime = new Date(state.snappedStartMs + state.durationMs)
+    setPendingMove({
+      eventId: state.eventId,
+      dayKey: state.dayKey,
+      startMs: startTime.getTime(),
+      endMs: endTime.getTime(),
+    })
+    reschedule
+      .mutateAsync({ id: state.eventId, startTime, endTime })
+      .catch(() => { /* hook surfaces the error toast */ })
+      .finally(() => setPendingMove(null))
+  }
+
+  function handleEventPointerCancel() {
+    clearLongPress()
+    const wasDragging = dragRef.current !== null
+    pointerRef.current = null
+    dragRef.current = null
+    if (wasDragging) {
+      setDrag(null)
+      suppressNextClick()
+    }
+  }
+
   function handleTouchStart(e: React.TouchEvent) {
+    if (dragActiveRef.current) return
     touchStartX.current = e.touches[0].clientX
     touchStartY.current = e.touches[0].clientY
     isVerticalScroll.current = false
   }
   function handleTouchMove(e: React.TouchEvent) {
+    if (dragActiveRef.current) return
     if (touchStartX.current === null || touchStartY.current === null) return
     const dx = Math.abs(e.touches[0].clientX - touchStartX.current)
     const dy = Math.abs(e.touches[0].clientY - touchStartY.current)
@@ -68,6 +271,14 @@ export function WeekView({ anchorDate, events, tasks, onEventTap, onPrev, onNext
     }
   }
   function handleTouchEnd(e: React.TouchEvent) {
+    // The gesture belonged to a drag — never flip the week on release.
+    if (dragActiveRef.current) {
+      dragActiveRef.current = false
+      touchStartX.current = null
+      touchStartY.current = null
+      isVerticalScroll.current = false
+      return
+    }
     if (touchStartX.current === null || isVerticalScroll.current) {
       touchStartX.current = null
       touchStartY.current = null
@@ -184,9 +395,15 @@ export function WeekView({ anchorDate, events, tasks, onEventTap, onPrev, onNext
           {/* Day columns */}
           {days.map((day) => {
             const layoutEvents = layoutEventsForDay(timedNonReminderEvents, day)
+            const dayKey = day.toISOString()
+            // Bounds a dragged event is clamped to: this column's hour range.
+            const gridStartDate = new Date(day)
+            gridStartDate.setHours(HOURS_IN_VIEW[0], 0, 0, 0)
+            const gridStartMs = gridStartDate.getTime()
+            const gridEndMs = gridStartMs + HOURS_IN_VIEW.length * 60 * MINUTE_MS
 
             return (
-              <div key={day.toISOString()} className="flex-1 relative border-l border-border">
+              <div key={dayKey} className="flex-1 relative border-l border-border">
                 {/* Hour gridlines */}
                 {HOURS_IN_VIEW.map((hour) => (
                   <div
@@ -201,28 +418,63 @@ export function WeekView({ anchorDate, events, tasks, onEventTap, onPrev, onNext
                   </div>
                 ))}
 
+                {/* Snapped-time badge while dragging this column's event */}
+                {drag && drag.dayKey === dayKey && (
+                  <div
+                    className="absolute left-0 z-40 pointer-events-none"
+                    style={{ top: topForTime(new Date(drag.snappedStartMs)) - 6 }}
+                  >
+                    <span className="ml-0.5 rounded bg-foreground px-1 py-px text-[8px] font-semibold text-background">
+                      {format(new Date(drag.snappedStartMs), "h:mm")}
+                    </span>
+                  </div>
+                )}
+
                 {/* Regular events */}
                 {layoutEvents.map((event) => {
-                  const start = new Date(event.start_time)
-                  const gridStart = new Date(day)
-                  gridStart.setHours(HOURS_IN_VIEW[0], 0, 0, 0)
-                  const renderStart = event.effectiveStart.getTime() < gridStart.getTime()
-                    ? gridStart
-                    : event.effectiveStart
+                  const isDragging = drag?.eventId === event.id && drag.dayKey === dayKey
+                  // A drag (or a drop still awaiting its refetch) overrides the stored times.
+                  const override = isDragging && drag
+                    ? { startMs: drag.snappedStartMs, endMs: drag.snappedStartMs + drag.durationMs }
+                    : pendingMove?.eventId === event.id && pendingMove.dayKey === dayKey
+                      ? { startMs: pendingMove.startMs, endMs: pendingMove.endMs }
+                      : null
+
+                  const start = override ? new Date(override.startMs) : new Date(event.start_time)
+                  const effectiveStart = override ? start : event.effectiveStart
+                  const effectiveEnd = override ? new Date(override.endMs) : event.effectiveEnd
+                  const renderStart = effectiveStart.getTime() < gridStartMs
+                    ? gridStartDate
+                    : effectiveStart
                   const top = topForTime(renderStart)
-                  const height = heightForEvent(renderStart, event.effectiveEnd)
-                  const continuesBefore = event.continuesBefore || event.effectiveStart.getTime() < gridStart.getTime()
-                  const continuesAfter = event.continuesAfter
+                  const height = heightForEvent(renderStart, effectiveEnd)
+                  // A moved event is always clamped inside the grid, so it never continues.
+                  const continuesBefore = override
+                    ? false
+                    : event.continuesBefore || event.effectiveStart.getTime() < gridStartMs
+                  const continuesAfter = override ? false : event.continuesAfter
                   const colors = eventColor(event)
                   const width = `${100 / event.cols}%`
                   const left = `${(event.col / event.cols) * 100}%`
+                  const draggable = canDragEvent(event)
 
                   return (
                     <button
                       key={event.id}
                       type="button"
-                      onClick={() => onEventTap(event)}
-                      className="absolute rounded overflow-hidden text-left active:opacity-80"
+                      onClick={() => {
+                        if (suppressClickRef.current) return
+                        onEventTap(event)
+                      }}
+                      onPointerDown={(e) => handleEventPointerDown(e, event, dayKey, gridStartMs, gridEndMs)}
+                      onPointerMove={handleEventPointerMove}
+                      onPointerUp={handleEventPointerUp}
+                      onPointerCancel={handleEventPointerCancel}
+                      onContextMenu={draggable ? (e) => e.preventDefault() : undefined}
+                      className={cn(
+                        "absolute rounded overflow-hidden text-left select-none",
+                        !isDragging && "active:opacity-80"
+                      )}
                       style={{
                         top,
                         height,
@@ -232,6 +484,14 @@ export function WeekView({ anchorDate, events, tasks, onEventTap, onPrev, onNext
                         borderLeft: `3px solid ${colors.border}`,
                         backgroundColor: colors.bg,
                         color: colors.text,
+                        ...(isDragging
+                          ? {
+                              zIndex: 30,
+                              opacity: 0.92,
+                              transform: "scale(1.02)",
+                              boxShadow: "0 8px 20px rgba(0,0,0,0.35)",
+                            }
+                          : null),
                       }}
                     >
                       {continuesBefore && (
