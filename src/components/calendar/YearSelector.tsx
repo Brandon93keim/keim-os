@@ -1,6 +1,5 @@
 "use client"
 
-import { ChevronDown } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,12 +29,13 @@ export function YearSelector({ anchorDate, onSelectYear }: Props) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
+        {/* Pill (matching the month strip's chip shape) rather than a labelled
+            dropdown — the rounded affordance is what signals "tappable" here. */}
         <button
           type="button"
-          className="flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold leading-tight active:opacity-70"
+          className="shrink-0 rounded-full border border-border px-3 py-1 text-sm font-semibold leading-tight whitespace-nowrap transition-colors active:bg-muted active:opacity-70"
         >
           {selectedYear}
-          <ChevronDown size={14} className="text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
 
