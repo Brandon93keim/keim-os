@@ -8,12 +8,16 @@ import {
   listAccountTransactions,
   listPnLTransactions,
   listDrillDownTransactions,
+  listLastReconciliations,
   createTransaction,
+  createReconciliation,
   updateTransaction as updateTransactionQuery,
   deleteTransaction as deleteTransactionQuery,
   type TransactionFilters,
+  type ReconcileInput,
 } from "@/lib/queries/finance"
 import type { TransactionFormValues } from "@/lib/finance/schemas"
+import { formatCurrency } from "@/lib/finance/format"
 import { BUSINESSES } from "@/lib/constants"
 
 const INVALIDATE_KEYS = ["transactions", "accounts", "business-pnl"] as const
@@ -154,6 +158,18 @@ export function useAccountTransactions(accountId: string) {
   })
 }
 
+// Keyed on a sorted copy so callers can pass ids in any order without
+// splitting the cache. Lives under "transactions" so recording a
+// reconciliation refreshes it along with everything else.
+export function useLastReconciliations(accountIds: string[]) {
+  const key = [...accountIds].sort()
+  return useQuery({
+    queryKey: ["transactions", "reconciliations", key],
+    queryFn: () => listLastReconciliations(key),
+    enabled: key.length > 0,
+  })
+}
+
 export function useTransaction(id: string | undefined) {
   const { data: transactions } = useTransactions()
   return transactions?.find((t) => t.id === id)
@@ -171,6 +187,31 @@ export function useCreateTransaction() {
     },
     onError: (err: Error) => {
       toast.error(err.message ?? "Failed to add transaction")
+    },
+  })
+}
+
+export function useReconcileAccount() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: ReconcileInput) => createReconciliation(input),
+    onSuccess: (delta) => {
+      if (!delta) {
+        // Nothing was written — the balance already agreed with the statement.
+        toast.success("Already matches the statement")
+        return
+      }
+      INVALIDATE_KEYS.forEach((key) =>
+        queryClient.invalidateQueries({ queryKey: [key] })
+      )
+      toast.success(
+        delta.type === "expense"
+          ? `Reconciled — added ${formatCurrency(delta.amount)} in unrecorded charges`
+          : `Reconciled — credited ${formatCurrency(delta.amount)} back`
+      )
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to reconcile")
     },
   })
 }

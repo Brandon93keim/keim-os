@@ -7,10 +7,12 @@ import { cn } from "@/lib/utils"
 import { useAllAccounts } from "@/lib/hooks/useAccounts"
 import { useAccountTransactions } from "@/lib/hooks/useTransactions"
 import { formatCurrency } from "@/lib/finance/format"
+import { isReconciliationDescription } from "@/lib/finance/reconciliation"
 import { getBusinessById } from "@/lib/constants"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { AccountFormSheet } from "./AccountFormSheet"
+import { ReconcileDialog } from "./ReconcileDialog"
 import { TransactionFormSheet } from "./TransactionFormSheet"
 import type { TransactionFormDefaults } from "./TransactionForm"
 import type { AccountWithBalance, TransactionWithRelations } from "@/lib/finance/types"
@@ -21,6 +23,11 @@ const TYPE_LABELS: Record<string, string> = {
   credit_card: "Credit Card",
   cash: "Cash",
   other: "Other",
+}
+
+const SUBTYPE_LABELS: Record<string, string> = {
+  financing: "Financing plan",
+  revolving: "Revolving card",
 }
 
 type TransactionWithRunning = TransactionWithRelations & { runningAfter: number }
@@ -180,6 +187,7 @@ export function AccountLedger({ id }: { id: string }) {
   const { data: transactions = [], isLoading: txLoading, error } = useAccountTransactions(id)
 
   const [editSheetOpen, setEditSheetOpen] = useState(false)
+  const [reconcileOpen, setReconcileOpen] = useState(false)
   const [txSheetOpen, setTxSheetOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<TransactionWithRelations | undefined>(undefined)
   const [txDefaults, setTxDefaults] = useState<TransactionFormDefaults | undefined>(undefined)
@@ -193,6 +201,20 @@ export function AccountLedger({ id }: { id: string }) {
   }, [transactions, id, account])
 
   const groups = useMemo(() => groupByDate(transactionsWithRunning), [transactionsWithRunning])
+
+  const isRevolving = account?.type === "credit_card" && account.credit_subtype === "revolving"
+
+  // The ledger already holds every row for this account, so the last
+  // reconciliation is a scan rather than another query. Rows come back newest
+  // first, so the first match wins.
+  const lastReconciledOn = useMemo(() => {
+    if (!isRevolving) return null
+    return (
+      transactions.find(
+        (t) => t.account_id === id && isReconciliationDescription(t.description)
+      )?.occurred_on ?? null
+    )
+  }, [transactions, id, isRevolving])
 
   function openEditTx(t: TransactionWithRelations) {
     setEditTarget(t)
@@ -260,14 +282,35 @@ export function AccountLedger({ id }: { id: string }) {
               {formatCurrency(Math.abs(balance))}
             </p>
           )}
+          {/* Charges on a revolving card are never entered — only payments —
+              so the balance above is a floor, not a fact. */}
+          {isRevolving && !accountsLoading && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {lastReconciledOn
+                ? `Estimate · last reconciled ${format(parseISO(lastReconciledOn), "MMM d, yyyy")}`
+                : "Estimate · never reconciled"}
+            </p>
+          )}
           {isLiability && !accountsLoading && (
-            <button
-              type="button"
-              onClick={openPayDown}
-              className="mt-3 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm active:scale-95 transition-transform"
-            >
-              Pay down
-            </button>
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={openPayDown}
+                className="inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm active:scale-95 transition-transform"
+              >
+                Pay down
+              </button>
+              {/* Financing balances are already accurate — nothing to reconcile. */}
+              {isRevolving && (
+                <button
+                  type="button"
+                  onClick={() => setReconcileOpen(true)}
+                  className="inline-flex items-center justify-center rounded-lg border border-border bg-background px-5 py-2 text-sm font-semibold active:scale-95 transition-transform"
+                >
+                  Reconcile
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -276,6 +319,9 @@ export function AccountLedger({ id }: { id: string }) {
           <div className="flex items-center justify-center gap-2 mb-2">
             <p className="text-sm text-muted-foreground">
               {TYPE_LABELS[account.type] ?? account.type}
+              {account.credit_subtype
+                ? ` · ${SUBTYPE_LABELS[account.credit_subtype] ?? account.credit_subtype}`
+                : ""}
             </p>
             {business && (
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -359,6 +405,15 @@ export function AccountLedger({ id }: { id: string }) {
         onClose={() => setEditSheetOpen(false)}
         account={account}
       />
+
+      {/* Reconcile — revolving cards only */}
+      {account && isRevolving && (
+        <ReconcileDialog
+          open={reconcileOpen}
+          onClose={() => setReconcileOpen(false)}
+          account={account}
+        />
+      )}
 
       {/* Add / edit transaction sheet */}
       <TransactionFormSheet

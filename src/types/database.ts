@@ -627,6 +627,7 @@ export type Database = {
           name: string
           type: string
           kind: string
+          credit_subtype: string | null
           starting_balance: number
           business_id: string | null
           is_active: boolean
@@ -640,6 +641,7 @@ export type Database = {
           name: string
           type: string
           kind: string
+          credit_subtype?: string | null
           starting_balance?: number
           business_id?: string | null
           is_active?: boolean
@@ -653,6 +655,7 @@ export type Database = {
           name?: string
           type?: string
           kind?: string
+          credit_subtype?: string | null
           starting_balance?: number
           business_id?: string | null
           is_active?: boolean
@@ -1049,6 +1052,7 @@ export type Database = {
           name: string
           type: string
           kind: string
+          credit_subtype: string | null
           starting_balance: number
           business_id: string | null
           is_active: boolean

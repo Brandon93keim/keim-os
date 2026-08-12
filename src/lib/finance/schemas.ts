@@ -6,6 +6,7 @@ export const accountFormSchema = z
     name: z.string().min(1, "Name is required").max(60, "Name must be 60 characters or fewer"),
     type: z.enum(["checking", "savings", "credit_card", "cash", "other"]),
     kind: z.enum(["asset", "liability"]),
+    credit_subtype: z.enum(["financing", "revolving"]).nullable(),
     starting_balance: z.number().min(0, "Balance must be 0 or greater"),
     business_id: z.string().nullable(),
     is_active: z.boolean(),
@@ -25,9 +26,50 @@ export const accountFormSchema = z
         path: ["kind"],
       })
     }
+    // Mirrors the DB check constraint: a subtype only ever belongs to a credit
+    // card. The form goes one step further and makes the choice mandatory
+    // there, since which one it is drives how the balance is read.
+    if (data.type === "credit_card") {
+      if (data.credit_subtype === null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Choose financing or revolving",
+          path: ["credit_subtype"],
+        })
+      }
+    } else if (data.credit_subtype !== null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Only credit cards have a subtype",
+        path: ["credit_subtype"],
+      })
+    }
   })
 
 export type AccountFormValues = z.infer<typeof accountFormSchema>
+
+// Statement balance is entered unsigned — the amount the card says is owed.
+// Nullable so an untouched field fails validation instead of reading as $0,
+// which would book the full balance as a credit.
+// The required check lives in superRefine rather than a .refine() on the field:
+// narrowing null away there would split the schema's input/output types and
+// break the resolver's typing.
+export const reconcileFormSchema = z
+  .object({
+    statement_balance: z.number().min(0, "Statement balance must be 0 or greater").nullable(),
+    occurred_on: z.string().min(1, "Date is required"),
+  })
+  .superRefine((data, ctx) => {
+    if (data.statement_balance === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Statement balance is required",
+        path: ["statement_balance"],
+      })
+    }
+  })
+
+export type ReconcileFormValues = z.infer<typeof reconcileFormSchema>
 
 export const transactionFormSchema = z
   .object({

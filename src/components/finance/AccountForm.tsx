@@ -63,6 +63,7 @@ export function AccountForm({ account, onSuccess, onCancel }: Props) {
           name: account.name,
           type: account.type,
           kind: account.kind,
+          credit_subtype: account.credit_subtype ?? null,
           starting_balance: Math.abs(Number(account.starting_balance)),
           business_id: account.business_id,
           is_active: account.is_active,
@@ -71,6 +72,7 @@ export function AccountForm({ account, onSuccess, onCancel }: Props) {
           name: "",
           type: "checking",
           kind: "asset",
+          credit_subtype: null,
           starting_balance: 0,
           business_id: null,
           is_active: true,
@@ -87,6 +89,11 @@ export function AccountForm({ account, onSuccess, onCancel }: Props) {
     const autoKind = kindForType(typeValue)
     if (autoKind !== null) {
       form.setValue("kind", autoKind, { shouldValidate: false })
+    }
+    // Subtype belongs to credit cards only — clear it the moment the type moves
+    // away, so a stale value can't be submitted against the check constraint.
+    if (typeValue !== "credit_card") {
+      form.setValue("credit_subtype", null, { shouldValidate: false })
     }
   }, [typeValue, form])
 
@@ -170,6 +177,36 @@ export function AccountForm({ account, onSuccess, onCancel }: Props) {
               </FormItem>
             )}
           />
+
+          {/* Credit subtype — only visible when type=credit_card */}
+          {typeValue === "credit_card" && (
+            <FormField
+              control={form.control}
+              name="credit_subtype"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Card type *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value ?? undefined}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Financing or revolving" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="financing">Financing plan</SelectItem>
+                      <SelectItem value="revolving">Revolving card</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Financing plans pay down on a fixed schedule, so their balance stays
+                    accurate. Revolving cards drift between statements — only payments get
+                    recorded — so they can be reconciled.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
           {/* Kind — only visible when type=other */}
           {typeValue === "other" && (

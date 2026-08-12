@@ -1,4 +1,11 @@
+import { parseISO } from "date-fns"
 import { createClient } from "@/lib/supabase/client"
+import {
+  RECONCILIATION_MARKER,
+  reconciliationDelta,
+  reconciliationDescription,
+  type ReconciliationDelta,
+} from "@/lib/finance/reconciliation"
 import type { AccountWithBalance, TransactionWithRelations, AllocationRuleWithAccount, Category, CategoryInput } from "@/lib/finance/types"
 import type { AccountFormValues, TransactionFormValues, AllocationRuleFormValues } from "@/lib/finance/schemas"
 
@@ -48,6 +55,7 @@ export async function createAccount(values: AccountFormValues): Promise<void> {
     name: values.name,
     type: values.type,
     kind: values.kind,
+    credit_subtype: values.type === "credit_card" ? values.credit_subtype : null,
     starting_balance: values.kind === "liability" ? -Math.abs(values.starting_balance) : values.starting_balance,
     business_id: values.business_id,
     is_active: values.is_active,
@@ -63,6 +71,7 @@ export async function updateAccount(id: string, values: AccountFormValues): Prom
       name: values.name,
       type: values.type,
       kind: values.kind,
+      credit_subtype: values.type === "credit_card" ? values.credit_subtype : null,
       starting_balance: values.kind === "liability" ? -Math.abs(values.starting_balance) : values.starting_balance,
       business_id: values.business_id,
       is_active: values.is_active,
@@ -94,6 +103,83 @@ export async function getAccountTransactionCount(id: string): Promise<number> {
     .eq("account_id", id)
   if (error) throw error
   return count ?? 0
+}
+
+export type ReconcileInput = {
+  account: { id: string; name: string; current_balance: number }
+  statement_balance: number
+  occurred_on: string // yyyy-MM-dd
+}
+
+/**
+ * Writes the single adjusting row that brings a revolving card in line with its
+ * statement, in the exact shape of the manual reconciliations already in the
+ * ledger: excluded from P&L, no category, booked against the card itself.
+ * Returns null — and writes nothing — when the balance already matches.
+ */
+export async function createReconciliation(
+  input: ReconcileInput
+): Promise<ReconciliationDelta | null> {
+  const delta = reconciliationDelta(
+    Number(input.account.current_balance),
+    input.statement_balance
+  )
+  if (!delta) return null
+
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const { error } = await supabase.from("transactions").insert({
+    user_id: user.id,
+    account_id: input.account.id,
+    transfer_to_account_id: null,
+    type: delta.type,
+    amount: delta.amount,
+    occurred_on: input.occurred_on,
+    description: reconciliationDescription(input.account.name, parseISO(input.occurred_on)),
+    business_id: null,
+    category_id: null,
+    excluded_from_pnl: true,
+    notes: null,
+  })
+  if (error) throw error
+  return delta
+}
+
+// Latest reconciliation date per account, keyed by account id. Reconciliations
+// have no marker column — they're identified by the description convention in
+// lib/finance/reconciliation.ts — so this filters on that phrase.
+export async function listLastReconciliations(
+  accountIds: string[]
+): Promise<Record<string, string>> {
+  if (!accountIds.length) return {}
+
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("account_id, occurred_on")
+    .eq("user_id", user.id)
+    .eq("excluded_from_pnl", true)
+    .in("account_id", accountIds)
+    .ilike("description", `%${RECONCILIATION_MARKER}%`)
+    .order("occurred_on", { ascending: false })
+
+  if (error) throw error
+
+  // Rows arrive newest first, so the first hit per account is the latest.
+  const latest: Record<string, string> = {}
+  for (const row of data ?? []) {
+    if (!latest[row.account_id]) latest[row.account_id] = row.occurred_on
+  }
+  return latest
 }
 
 export async function listTransactions(

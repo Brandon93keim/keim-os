@@ -1,6 +1,9 @@
 export type AccountType = 'checking' | 'savings' | 'credit_card' | 'cash' | 'other';
 export type AccountKind = 'asset' | 'liability';
 export type TransactionType = 'income' | 'expense' | 'transfer';
+// Only credit_card accounts carry a subtype; everything else is null. Existing
+// cards can be null too, until they're tagged.
+export type CreditSubtype = 'financing' | 'revolving';
 
 export type Account = {
   id: string;
@@ -8,6 +11,7 @@ export type Account = {
   name: string;
   type: AccountType;
   kind: AccountKind;
+  credit_subtype: CreditSubtype | null;
   starting_balance: number;
   business_id: string | null;
   is_active: boolean;
