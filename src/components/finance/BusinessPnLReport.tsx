@@ -4,12 +4,14 @@ import { useState } from "react"
 import Link from "next/link"
 import { ChevronDown } from "lucide-react"
 import { startOfMonth, startOfYear, subDays, format } from "date-fns"
-import { type DateRange } from "react-day-picker"
+import { type DateRange, type Matcher } from "react-day-picker"
 import { cn } from "@/lib/utils"
 import { useBusinessPnL, type BusinessPnLRow, type PnLTotals } from "@/lib/hooks/useTransactions"
 import { formatCurrency } from "@/lib/finance/format"
 import { Skeleton } from "@/components/ui/skeleton"
-import { DateRangePicker } from "./DateRangePicker"
+import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 type RangeKey = "MTD" | "YTD" | "Custom"
 
@@ -103,6 +105,51 @@ function ChipRow({ selected, onSelect }: { selected: RangeKey; onSelect: (k: Ran
         ))}
       </div>
     </div>
+  )
+}
+
+// One half of the custom range. Same popover pattern as InvoiceForm's
+// DatePickerField, with a Done button so the calendar can be dismissed without
+// tapping outside it.
+function CustomDateField({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string
+  value: Date | undefined
+  onChange: (d: Date) => void
+  disabled?: Matcher
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-10 min-w-0 flex-1 justify-start gap-1.5 text-sm font-normal"
+        >
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
+          <span className="truncate">{value ? format(value, "MMM d, yyyy") : "Pick a date"}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto gap-0 p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={value}
+          onSelect={(d) => { if (d) onChange(d) }}
+          defaultMonth={value}
+          disabled={disabled}
+        />
+        <div className="border-t border-border p-2">
+          <Button type="button" size="sm" className="w-full" onClick={() => setOpen(false)}>
+            Done
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -251,24 +298,34 @@ export function BusinessPnLReport() {
 
   function handleRangeSelect(k: RangeKey) {
     setRange(k)
+    // Seed both fields the first time Custom is opened so neither is ever empty.
+    if (k === "Custom" && !customRange) setCustomRange(defaultCustomRange())
   }
 
   function handleCustomSelect(r: DateRange | undefined) {
     setCustomRange(r)
   }
 
-  const pickerValue = range === "Custom" ? (customRange ?? defaultCustomRange()) : undefined
+  const custom = customRange ?? defaultCustomRange()
 
   return (
     <>
-      {/* Chip row + inline date picker */}
+      {/* Chip row + custom range fields */}
       <div className="shrink-0 border-b border-border">
         <ChipRow selected={range} onSelect={handleRangeSelect} />
         {range === "Custom" && (
-          <div className="pb-3">
-            <DateRangePicker
-              selected={pickerValue}
-              onSelect={handleCustomSelect}
+          <div className="flex gap-2 px-4 pb-3">
+            <CustomDateField
+              label="From"
+              value={custom.from}
+              onChange={(d) => handleCustomSelect({ ...custom, from: d })}
+              disabled={custom.to ? { after: custom.to } : undefined}
+            />
+            <CustomDateField
+              label="To"
+              value={custom.to}
+              onChange={(d) => handleCustomSelect({ ...custom, to: d })}
+              disabled={custom.from ? { before: custom.from } : undefined}
             />
           </div>
         )}
