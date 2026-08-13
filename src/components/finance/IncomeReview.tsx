@@ -4,14 +4,35 @@ import { useState } from "react"
 import Link from "next/link"
 import { format } from "date-fns"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 import { cn } from "@/lib/utils"
-import { useIncomeReview, type IncomeStream } from "@/lib/hooks/useTransactions"
+import {
+  useIncomeReview,
+  type IncomePeriod,
+  type IncomeStream,
+} from "@/lib/hooks/useTransactions"
 import { formatCurrency } from "@/lib/finance/format"
 import { Skeleton } from "@/components/ui/skeleton"
 
 type Axis = "combined" | "stream"
 
 const CURRENT_YEAR = new Date().getFullYear()
+
+// Axis ticks only — the tooltip carries the exact figure via formatCurrency.
+const axisUsd = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 1,
+})
 
 function HeroSkeleton() {
   return (
@@ -30,6 +51,63 @@ function RowSkeleton() {
       <Skeleton className="h-4 w-24" />
       <Skeleton className="h-4 w-20" />
     </div>
+  )
+}
+
+function PeriodTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean
+  payload?: { payload: IncomePeriod }[]
+}) {
+  if (!active || !payload?.length) return null
+  const period = payload[0].payload
+  return (
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-md">
+      <p className="text-xs text-muted-foreground">{period.label}</p>
+      <p className="text-sm font-semibold tabular-nums text-popover-foreground">
+        {formatCurrency(period.total)}
+      </p>
+    </div>
+  )
+}
+
+// Aggregate business totals, so one fill for every bar — per-business color would
+// imply an identity split the combined axis doesn't have. Periods arrive
+// pre-seeded (all 12 months, or every year in all-time mode), so months with no
+// income sit flat on the baseline instead of dropping out of the axis.
+function PeriodBarChart({ periods }: { periods: IncomePeriod[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={periods} margin={{ top: 8, right: 4, bottom: 0, left: -12 }}>
+        <CartesianGrid vertical={false} stroke="var(--border)" />
+        <XAxis
+          dataKey="label"
+          interval={0}
+          tickLine={false}
+          axisLine={false}
+          tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+        />
+        <YAxis
+          width={52}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={(value: number) => axisUsd.format(value)}
+          tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+        />
+        <Tooltip
+          content={<PeriodTooltip />}
+          cursor={{ fill: "var(--muted)", opacity: 0.6 }}
+        />
+        <Bar
+          dataKey="total"
+          fill="var(--chart-income)"
+          radius={[4, 4, 0, 0]}
+          maxBarSize={24}
+        />
+      </BarChart>
+    </ResponsiveContainer>
   )
 }
 
@@ -193,15 +271,7 @@ export function IncomeReview() {
           ) : !data || (data.total === 0 && data.golfTotal === 0 && data.personalTotal === 0) ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No income in this period.</p>
           ) : axis === "combined" ? (
-            data.periods.map((period) => (
-              <div
-                key={period.key}
-                className="flex items-center justify-between rounded-xl bg-muted/60 p-3"
-              >
-                <span className="text-sm font-medium">{period.label}</span>
-                <span className="text-sm tabular-nums">{formatCurrency(period.total)}</span>
-              </div>
-            ))
+            <PeriodBarChart periods={data.periods} />
           ) : (
             <>
               <StreamSection
