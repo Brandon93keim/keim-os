@@ -5,7 +5,7 @@ import Link from "next/link"
 import { format } from "date-fns"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useIncomeReview } from "@/lib/hooks/useTransactions"
+import { useIncomeReview, type IncomeStream } from "@/lib/hooks/useTransactions"
 import { formatCurrency } from "@/lib/finance/format"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -30,6 +30,68 @@ function RowSkeleton() {
       <Skeleton className="h-4 w-24" />
       <Skeleton className="h-4 w-20" />
     </div>
+  )
+}
+
+function StreamSection({
+  title,
+  streams,
+  total,
+  totalLabel,
+  variant,
+  from,
+  to,
+}: {
+  title: string
+  streams: IncomeStream[]
+  total: number
+  totalLabel: string
+  variant: "primary" | "aside"
+  from: string
+  to: string
+}) {
+  if (streams.length === 0) return null
+  const aside = variant === "aside"
+  return (
+    <>
+      <p className="px-1 pt-3 pb-0.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </p>
+      {streams.map((stream) => {
+        const bizParam = stream.businessId ?? "personal"
+        const href = `/money/transactions?business=${bizParam}&from=${from}&to=${to}`
+        return (
+          <Link
+            key={stream.businessId ?? "__personal__"}
+            href={href}
+            className="flex items-center gap-3 rounded-xl bg-muted/60 p-3 transition-colors active:bg-muted hover:bg-muted/80"
+          >
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: stream.color }}
+            />
+            <span className="flex-1 min-w-0 text-sm font-medium truncate">{stream.businessName}</span>
+            <span className="text-sm tabular-nums">{formatCurrency(stream.income)}</span>
+          </Link>
+        )
+      })}
+      <div
+        className={cn(
+          "flex items-center justify-between rounded-xl p-3",
+          aside ? "border border-dashed border-border" : "bg-muted"
+        )}
+      >
+        <span
+          className={cn(
+            "text-sm font-semibold",
+            aside && "font-medium text-muted-foreground"
+          )}
+        >
+          {totalLabel}
+        </span>
+        <span className="text-sm font-semibold tabular-nums">{formatCurrency(total)}</span>
+      </div>
+    </>
   )
 }
 
@@ -126,7 +188,7 @@ export function IncomeReview() {
         <div className="px-3 space-y-2 mt-3">
           {isLoading ? (
             [...Array(4)].map((_, i) => <RowSkeleton key={i} />)
-          ) : !data || data.total === 0 ? (
+          ) : !data || (data.total === 0 && data.golfTotal === 0 && data.personalTotal === 0) ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No income in this period.</p>
           ) : axis === "combined" ? (
             data.periods.map((period) => (
@@ -139,24 +201,35 @@ export function IncomeReview() {
               </div>
             ))
           ) : (
-            data.streams.map((stream) => {
-              const bizParam = stream.businessId ?? "personal"
-              const href = `/money/transactions?business=${bizParam}&from=${from}&to=${to}`
-              return (
-                <Link
-                  key={stream.businessId ?? "__personal__"}
-                  href={href}
-                  className="flex items-center gap-3 rounded-xl bg-muted/60 p-3 transition-colors active:bg-muted hover:bg-muted/80"
-                >
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: stream.color }}
-                  />
-                  <span className="flex-1 min-w-0 text-sm font-medium truncate">{stream.businessName}</span>
-                  <span className="text-sm tabular-nums">{formatCurrency(stream.income)}</span>
-                </Link>
-              )
-            })
+            <>
+              <StreamSection
+                title="Businesses"
+                streams={data.businessStreams}
+                total={data.total}
+                totalLabel="Business Total"
+                variant="primary"
+                from={from}
+                to={to}
+              />
+              <StreamSection
+                title="Golf"
+                streams={data.golfStreams}
+                total={data.golfTotal}
+                totalLabel="Golf Total — separate"
+                variant="aside"
+                from={from}
+                to={to}
+              />
+              <StreamSection
+                title="Personal"
+                streams={data.personalStreams}
+                total={data.personalTotal}
+                totalLabel="Personal Total — separate"
+                variant="aside"
+                from={from}
+                to={to}
+              />
+            </>
           )}
         </div>
       </div>

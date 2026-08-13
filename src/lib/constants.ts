@@ -1,8 +1,13 @@
+// Which section of the P&L a unit rolls up into. Required (not optional) so a
+// new unit can't be added without deciding where its money lands.
+export type PnLGroup = "business" | "golf" | "personal"
+
 export type Business = {
   id: string
   name: string
   color: string
   textColor: "white" | "black"
+  pnl_group: PnLGroup
   invoice_logo?: string        // path under /public, e.g. "/business-logos/b-keim-rewind.png"
   invoice_display_name?: string // override `name` on invoices (used when no logo)
 }
@@ -13,6 +18,7 @@ export const BUSINESSES: Business[] = [
     name: "B Keim Rewind Marketing",
     color: "#15422E",
     textColor: "white",
+    pnl_group: "business",
     invoice_logo: "/business-logos/b-keim-rewind.png",
   },
   {
@@ -20,6 +26,7 @@ export const BUSINESSES: Business[] = [
     name: "Happily Ever After Media Co",
     color: "#E11D48",
     textColor: "white",
+    pnl_group: "business",
     invoice_logo: "/business-logos/happily-ever-after.png",
   },
   {
@@ -27,6 +34,7 @@ export const BUSINESSES: Business[] = [
     name: "Remember When Phone Booth",
     color: "#3F1A0A",
     textColor: "white",
+    pnl_group: "business",
     invoice_logo: "/business-logos/remember-when.png",
   },
   {
@@ -34,6 +42,7 @@ export const BUSINESSES: Business[] = [
     name: "Brandon Keim Contract Work",
     color: "#C026D3",
     textColor: "white",
+    pnl_group: "business",
     invoice_display_name: "Brandon Keim",
   },
   {
@@ -41,6 +50,7 @@ export const BUSINESSES: Business[] = [
     name: "Brandon Keim Legal Work",
     color: "#1E3A8A",
     textColor: "white",
+    pnl_group: "business",
     invoice_display_name: "Brandon Keim",
   },
   {
@@ -48,6 +58,7 @@ export const BUSINESSES: Business[] = [
     name: "Equipment Rental",
     color: "#EA580C",
     textColor: "white",
+    pnl_group: "business",
     invoice_display_name: "Brandon Keim",
   },
   {
@@ -55,6 +66,7 @@ export const BUSINESSES: Business[] = [
     name: "Keim Time",
     color: "#7C3AED",
     textColor: "white",
+    pnl_group: "business",
     invoice_logo: "/business-logos/keim-time.png",
   },
   {
@@ -62,6 +74,7 @@ export const BUSINESSES: Business[] = [
     name: "Keim Golf",
     color: "#15803D",
     textColor: "white",
+    pnl_group: "golf",
     // No invoice fields — in-app scheduling only
   },
 ]
@@ -99,6 +112,13 @@ export const EVENT_TYPE_COLORS: Record<string, string> = {
 
 export function getBusinessById(id: string): Business | undefined {
   return BUSINESSES.find((b) => b.id === id)
+}
+
+// Unknown ids fall to "personal" to match useBusinessPnL, where a transaction
+// carrying an unrecognized business_id already lands in the Personal row.
+export function getPnLGroup(businessId: string | null): PnLGroup {
+  if (!businessId) return "personal"
+  return getBusinessById(businessId)?.pnl_group ?? "personal"
 }
 
 export function getBusinessPrefix(id: string): string {

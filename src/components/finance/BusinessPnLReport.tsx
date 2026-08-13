@@ -5,7 +5,7 @@ import Link from "next/link"
 import { startOfMonth, startOfYear, subDays, subYears, addDays, format } from "date-fns"
 import { type DateRange } from "react-day-picker"
 import { cn } from "@/lib/utils"
-import { useBusinessPnL, type BusinessPnLRow } from "@/lib/hooks/useTransactions"
+import { useBusinessPnL, type BusinessPnLRow, type PnLTotals } from "@/lib/hooks/useTransactions"
 import { formatCurrency } from "@/lib/finance/format"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DateRangePicker } from "./DateRangePicker"
@@ -170,6 +170,97 @@ function PnLRow({ row, dateFrom, dateTo }: { row: BusinessPnLRow; dateFrom: stri
   )
 }
 
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <p className="px-1 pt-3 pb-0.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      {title}
+    </p>
+  )
+}
+
+// `variant` separates the headline business number from the golf and personal
+// subtotals, which are deliberately not additive to it.
+function SubtotalRow({
+  label,
+  totals,
+  variant,
+}: {
+  label: string
+  totals: PnLTotals
+  variant: "primary" | "aside"
+}) {
+  const aside = variant === "aside"
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-xl p-3",
+        aside
+          ? "border border-dashed border-border bg-transparent"
+          : "bg-muted"
+      )}
+    >
+      <p
+        className={cn(
+          "flex-1 min-w-0 truncate text-sm font-semibold",
+          aside && "font-medium text-muted-foreground"
+        )}
+      >
+        {label}
+      </p>
+      <div className="flex gap-3 shrink-0">
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">In</p>
+          <p className="text-xs tabular-nums">{formatCurrency(totals.income)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">Out</p>
+          <p className="text-xs tabular-nums">{formatCurrency(totals.expense)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">Net</p>
+          <p
+            className={cn(
+              "text-xs font-semibold tabular-nums",
+              totals.net < 0 && "text-red-500"
+            )}
+          >
+            {formatCurrency(totals.net)}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PnLSection({
+  title,
+  rows,
+  totals,
+  subtotalLabel,
+  variant,
+  dateFrom,
+  dateTo,
+}: {
+  title: string
+  rows: BusinessPnLRow[]
+  totals: PnLTotals
+  subtotalLabel: string
+  variant: "primary" | "aside"
+  dateFrom: string
+  dateTo: string
+}) {
+  if (rows.length === 0) return null
+  return (
+    <>
+      <SectionHeader title={title} />
+      {rows.map((row) => (
+        <PnLRow key={row.businessId ?? "__personal__"} row={row} dateFrom={dateFrom} dateTo={dateTo} />
+      ))}
+      <SubtotalRow label={subtotalLabel} totals={totals} variant={variant} />
+    </>
+  )
+}
+
 export function BusinessPnLReport() {
   const [range, setRange] = useState<RangeKey>("YTD")
   const [customRange, setCustomRange] = useState<DateRange | undefined>(undefined)
@@ -206,7 +297,12 @@ export function BusinessPnLReport() {
       {isLoading ? (
         <SummaryBandSkeleton />
       ) : data ? (
-        <SummaryBand income={data.totals.income} expense={data.totals.expense} net={data.totals.net} label={range} />
+        <SummaryBand
+          income={data.businessTotals.income}
+          expense={data.businessTotals.expense}
+          net={data.businessTotals.net}
+          label={range}
+        />
       ) : null}
 
       {/* Error state */}
@@ -221,11 +317,37 @@ export function BusinessPnLReport() {
         <div className="px-3 space-y-2 mt-3">
           {isLoading ? (
             [...Array(9)].map((_, i) => <RowSkeleton key={i} />)
-          ) : (
-            data?.rows.map((row) => (
-              <PnLRow key={row.businessId ?? "__personal__"} row={row} dateFrom={dateFrom} dateTo={dateTo} />
-            ))
-          )}
+          ) : data ? (
+            <>
+              <PnLSection
+                title="Businesses"
+                rows={data.businessRows}
+                totals={data.businessTotals}
+                subtotalLabel="Business Total"
+                variant="primary"
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+              />
+              <PnLSection
+                title="Golf"
+                rows={data.golfRows}
+                totals={data.golfTotals}
+                subtotalLabel="Golf Total — separate"
+                variant="aside"
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+              />
+              <PnLSection
+                title="Personal"
+                rows={data.personalRows}
+                totals={data.personalTotals}
+                subtotalLabel="Personal Total — separate"
+                variant="aside"
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+              />
+            </>
+          ) : null}
         </div>
       </div>
     </>

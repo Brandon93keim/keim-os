@@ -18,7 +18,7 @@ import {
 } from "@/lib/queries/finance"
 import type { TransactionFormValues } from "@/lib/finance/schemas"
 import { formatCurrency } from "@/lib/finance/format"
-import { BUSINESSES } from "@/lib/constants"
+import { BUSINESSES, getPnLGroup } from "@/lib/constants"
 
 const INVALIDATE_KEYS = ["transactions", "accounts", "business-pnl"] as const
 
@@ -31,11 +31,29 @@ export type BusinessPnLRow = {
   net: number
 }
 
+export type PnLTotals = { income: number; expense: number; net: number }
+
 export type BusinessPnLResult = {
   dateFrom: string
   dateTo: string
+  /** Every row, in the original order. Kept for consumers that want one flat list. */
   rows: BusinessPnLRow[]
-  totals: { income: number; expense: number; net: number }
+  /** Same rows, partitioned by each unit's pnl_group. */
+  businessRows: BusinessPnLRow[]
+  golfRows: BusinessPnLRow[]
+  personalRows: BusinessPnLRow[]
+  businessTotals: PnLTotals
+  golfTotals: PnLTotals
+  personalTotals: PnLTotals
+  /** All three groups combined. */
+  totals: PnLTotals
+}
+
+function sumRows(rows: BusinessPnLRow[]): PnLTotals {
+  return rows.reduce(
+    (acc, r) => ({ income: acc.income + r.income, expense: acc.expense + r.expense, net: acc.net + r.net }),
+    { income: 0, expense: 0, net: 0 }
+  )
 }
 
 export function useBusinessPnL(dateFrom: string, dateTo: string) {
@@ -64,12 +82,27 @@ export function useBusinessPnL(dateFrom: string, dateTo: string) {
         map.get(null)!,
       ]
 
-      const totals = rows.reduce(
-        (acc, r) => ({ income: acc.income + r.income, expense: acc.expense + r.expense, net: acc.net + r.net }),
-        { income: 0, expense: 0, net: 0 }
-      )
+      const businessRows = rows.filter((r) => getPnLGroup(r.businessId) === "business")
+      const golfRows = rows.filter((r) => getPnLGroup(r.businessId) === "golf")
+      const personalRows = rows.filter((r) => getPnLGroup(r.businessId) === "personal")
 
-      return { dateFrom, dateTo, rows, totals }
+      const businessTotals = sumRows(businessRows)
+      const golfTotals = sumRows(golfRows)
+      const personalTotals = sumRows(personalRows)
+      const totals = sumRows(rows)
+
+      return {
+        dateFrom,
+        dateTo,
+        rows,
+        businessRows,
+        golfRows,
+        personalRows,
+        businessTotals,
+        golfTotals,
+        personalTotals,
+        totals,
+      }
     },
   })
 }
@@ -77,9 +110,17 @@ export function useBusinessPnL(dateFrom: string, dateTo: string) {
 export type IncomePeriod = { key: string; label: string; total: number }
 export type IncomeStream = { businessId: string | null; businessName: string; color: string; income: number }
 export type IncomeReviewResult = {
+  /** Period totals are business-only — golf and personal income is excluded. */
   periods: IncomePeriod[]
+  /** Every stream, in the original order. */
   streams: IncomeStream[]
+  businessStreams: IncomeStream[]
+  golfStreams: IncomeStream[]
+  personalStreams: IncomeStream[]
+  /** Business-only grand total. */
   total: number
+  golfTotal: number
+  personalTotal: number
 }
 
 export function useIncomeReview(from: string, to: string, granularity: "month" | "year") {
@@ -114,19 +155,39 @@ export function useIncomeReview(from: string, to: string, granularity: "month" |
       streamMap.set(null, { businessId: null, businessName: "Personal", color: "#9CA3AF", income: 0 })
 
       for (const tx of income) {
-        const periodKey = granularity === "month" ? tx.occurred_on.slice(0, 7) : tx.occurred_on.slice(0, 4)
-        const period = periodMap.get(periodKey)
-        if (period) period.total += Number(tx.amount)
+        const amount = Number(tx.amount)
+        const businessId = tx.business_id ?? null
 
-        const stream = streamMap.get(tx.business_id ?? null) ?? streamMap.get(null)!
-        stream.income += Number(tx.amount)
+        // Period totals are business-only; golf and personal still show as streams.
+        if (getPnLGroup(businessId) === "business") {
+          const periodKey = granularity === "month" ? tx.occurred_on.slice(0, 7) : tx.occurred_on.slice(0, 4)
+          const period = periodMap.get(periodKey)
+          if (period) period.total += amount
+        }
+
+        const stream = streamMap.get(businessId) ?? streamMap.get(null)!
+        stream.income += amount
       }
 
       const periods = periodKeys.map((k) => periodMap.get(k)!)
       const streams: IncomeStream[] = [...BUSINESSES.map((b) => streamMap.get(b.id)!), streamMap.get(null)!]
-      const total = periods.reduce((acc, p) => acc + p.total, 0)
 
-      return { periods, streams, total }
+      const businessStreams = streams.filter((s) => getPnLGroup(s.businessId) === "business")
+      const golfStreams = streams.filter((s) => getPnLGroup(s.businessId) === "golf")
+      const personalStreams = streams.filter((s) => getPnLGroup(s.businessId) === "personal")
+
+      const sumIncome = (list: IncomeStream[]) => list.reduce((acc, s) => acc + s.income, 0)
+
+      return {
+        periods,
+        streams,
+        businessStreams,
+        golfStreams,
+        personalStreams,
+        total: sumIncome(businessStreams),
+        golfTotal: sumIncome(golfStreams),
+        personalTotal: sumIncome(personalStreams),
+      }
     },
   })
 }
