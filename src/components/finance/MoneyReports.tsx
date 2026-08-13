@@ -39,8 +39,10 @@ export function MoneyReports() {
   )
 
   return (
-    <div className="flex flex-col min-h-full">
-      <PageHeader title="Reports" backHref="/money" below={modeSwitch} />
+    <div className="flex h-full flex-col">
+      <div className="shrink-0">
+        <PageHeader title="Reports" backHref="/money" below={modeSwitch} />
+      </div>
       {mode === "pnl" ? <BusinessPnLReport /> : <IncomeReview />}
     </div>
   )

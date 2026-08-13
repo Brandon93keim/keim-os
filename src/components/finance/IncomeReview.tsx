@@ -111,7 +111,7 @@ export function IncomeReview() {
   return (
     <>
       {/* Year stepper + All-time chip */}
-      <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+      <div className="shrink-0 px-4 py-3 border-b border-border flex items-center gap-2">
         <button
           type="button"
           onClick={() => setYear((y) => y - 1)}
@@ -146,7 +146,7 @@ export function IncomeReview() {
       </div>
 
       {/* Axis toggle */}
-      <div className="px-4 py-3 flex gap-2">
+      <div className="shrink-0 px-4 py-3 flex gap-2">
         <div className="flex rounded-lg border border-border overflow-hidden flex-1">
           {(["combined", "stream"] as Axis[]).map((opt) => (
             <button
@@ -167,24 +167,26 @@ export function IncomeReview() {
       </div>
 
       {/* Hero */}
-      {isLoading ? (
-        <HeroSkeleton />
-      ) : data ? (
-        <div className="px-3 pt-0">
-          <div className="rounded-xl bg-muted/60 px-4 py-4 text-center">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Income</p>
-            <p className="text-3xl font-bold tabular-nums">{formatCurrency(data.total)}</p>
+      <div className="shrink-0">
+        {isLoading ? (
+          <HeroSkeleton />
+        ) : data ? (
+          <div className="px-3 pt-0">
+            <div className="rounded-xl bg-muted/60 px-4 py-4 text-center">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Income</p>
+              <p className="text-3xl font-bold tabular-nums">{formatCurrency(data.total)}</p>
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {/* Error */}
-      {error && (
-        <div className="py-8 text-center text-sm text-muted-foreground">Failed to load.</div>
-      )}
+        {/* Error */}
+        {error && (
+          <div className="py-8 text-center text-sm text-muted-foreground">Failed to load.</div>
+        )}
+      </div>
 
       {/* Rows */}
-      <div className="flex-1 pb-6">
+      <div className="flex-1 min-h-0 overflow-y-auto pb-6">
         <div className="px-3 space-y-2 mt-3">
           {isLoading ? (
             [...Array(4)].map((_, i) => <RowSkeleton key={i} />)

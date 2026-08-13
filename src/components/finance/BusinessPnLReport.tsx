@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { ChevronDown } from "lucide-react"
 import { startOfMonth, startOfYear, subDays, subYears, addDays, format } from "date-fns"
 import { type DateRange } from "react-day-picker"
 import { cn } from "@/lib/utils"
@@ -137,6 +138,44 @@ function SummaryBand({ income, expense, net, label }: { income: number; expense:
   )
 }
 
+// The in/out/net trio, shared by unit rows and the heavier summary rows.
+function TotalsTrio({
+  income,
+  expense,
+  net,
+  strong,
+}: {
+  income: number
+  expense: number
+  net: number
+  strong?: boolean
+}) {
+  return (
+    <div className="flex gap-3 shrink-0">
+      <div className="text-right">
+        <p className="text-xs text-muted-foreground">In</p>
+        <p className="text-xs tabular-nums">{formatCurrency(income)}</p>
+      </div>
+      <div className="text-right">
+        <p className="text-xs text-muted-foreground">Out</p>
+        <p className="text-xs tabular-nums">{formatCurrency(expense)}</p>
+      </div>
+      <div className="text-right">
+        <p className="text-xs text-muted-foreground">Net</p>
+        <p
+          className={cn(
+            "text-xs tabular-nums",
+            strong ? "font-semibold" : "font-medium",
+            net < 0 && "text-red-500"
+          )}
+        >
+          {formatCurrency(net)}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function PnLRow({ row, dateFrom, dateTo }: { row: BusinessPnLRow; dateFrom: string; dateTo: string }) {
   const bizParam = row.businessId ?? "personal"
   const href = `/money/transactions?business=${bizParam}&from=${dateFrom}&to=${dateTo}`
@@ -150,22 +189,7 @@ function PnLRow({ row, dateFrom, dateTo }: { row: BusinessPnLRow; dateFrom: stri
         style={{ backgroundColor: row.color }}
       />
       <p className="flex-1 min-w-0 text-sm font-medium truncate">{row.businessName}</p>
-      <div className="flex gap-3 shrink-0">
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">In</p>
-          <p className="text-xs tabular-nums">{formatCurrency(row.income)}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">Out</p>
-          <p className="text-xs tabular-nums">{formatCurrency(row.expense)}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">Net</p>
-          <p className={cn("text-xs font-medium tabular-nums", row.net < 0 ? "text-red-500" : "")}>
-            {formatCurrency(row.net)}
-          </p>
-        </div>
-      </div>
+      <TotalsTrio income={row.income} expense={row.expense} net={row.net} />
     </Link>
   )
 }
@@ -178,66 +202,21 @@ function SectionHeader({ title }: { title: string }) {
   )
 }
 
-// `variant` separates the headline business number from the golf and personal
-// subtotals, which are deliberately not additive to it.
-function SubtotalRow({
-  label,
-  totals,
-  variant,
-}: {
-  label: string
-  totals: PnLTotals
-  variant: "primary" | "aside"
-}) {
-  const aside = variant === "aside"
+function SubtotalRow({ label, totals }: { label: string; totals: PnLTotals }) {
   return (
-    <div
-      className={cn(
-        "flex items-center gap-3 rounded-xl p-3",
-        aside
-          ? "border border-dashed border-border bg-transparent"
-          : "bg-muted"
-      )}
-    >
-      <p
-        className={cn(
-          "flex-1 min-w-0 truncate text-sm font-semibold",
-          aside && "font-medium text-muted-foreground"
-        )}
-      >
-        {label}
-      </p>
-      <div className="flex gap-3 shrink-0">
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">In</p>
-          <p className="text-xs tabular-nums">{formatCurrency(totals.income)}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">Out</p>
-          <p className="text-xs tabular-nums">{formatCurrency(totals.expense)}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">Net</p>
-          <p
-            className={cn(
-              "text-xs font-semibold tabular-nums",
-              totals.net < 0 && "text-red-500"
-            )}
-          >
-            {formatCurrency(totals.net)}
-          </p>
-        </div>
-      </div>
+    <div className="flex items-center gap-3 rounded-xl bg-muted p-3">
+      <p className="flex-1 min-w-0 truncate text-sm font-semibold">{label}</p>
+      <TotalsTrio income={totals.income} expense={totals.expense} net={totals.net} strong />
     </div>
   )
 }
 
+// The businesses group: always fully expanded, never collapsible.
 function PnLSection({
   title,
   rows,
   totals,
   subtotalLabel,
-  variant,
   dateFrom,
   dateTo,
 }: {
@@ -245,7 +224,6 @@ function PnLSection({
   rows: BusinessPnLRow[]
   totals: PnLTotals
   subtotalLabel: string
-  variant: "primary" | "aside"
   dateFrom: string
   dateTo: string
 }) {
@@ -256,8 +234,56 @@ function PnLSection({
       {rows.map((row) => (
         <PnLRow key={row.businessId ?? "__personal__"} row={row} dateFrom={dateFrom} dateTo={dateTo} />
       ))}
-      <SubtotalRow label={subtotalLabel} totals={totals} variant={variant} />
+      <SubtotalRow label={subtotalLabel} totals={totals} />
     </>
+  )
+}
+
+// Golf and personal collapse to their subtotal by default so the report fits
+// the viewport; the totals shown are the same either way. The "separate" tag
+// carries what the old dashed `aside` subtotal did — these are not additive to
+// the business number.
+function CollapsibleGroup({
+  label,
+  rows,
+  totals,
+  dateFrom,
+  dateTo,
+}: {
+  label: string
+  rows: BusinessPnLRow[]
+  totals: PnLTotals
+  dateFrom: string
+  dateTo: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  if (rows.length === 0) return null
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-3 rounded-xl bg-muted p-3 text-left transition-colors active:bg-muted/80 hover:bg-muted/80"
+      >
+        <ChevronDown
+          size={16}
+          className={cn(
+            "shrink-0 text-muted-foreground transition-transform",
+            !expanded && "-rotate-90"
+          )}
+        />
+        <p className="flex-1 min-w-0 truncate text-sm font-semibold">
+          {label}
+          <span className="ml-1.5 text-xs font-normal text-muted-foreground">separate</span>
+        </p>
+        <TotalsTrio income={totals.income} expense={totals.expense} net={totals.net} strong />
+      </button>
+      {expanded &&
+        rows.map((row) => (
+          <PnLRow key={row.businessId ?? "__personal__"} row={row} dateFrom={dateFrom} dateTo={dateTo} />
+        ))}
+    </div>
   )
 }
 
@@ -281,7 +307,7 @@ export function BusinessPnLReport() {
   return (
     <>
       {/* Chip row + inline date picker */}
-      <div className="border-b border-border">
+      <div className="shrink-0 border-b border-border">
         <ChipRow selected={range} onSelect={handleRangeSelect} />
         {range === "Custom" && (
           <div className="pb-3">
@@ -294,26 +320,29 @@ export function BusinessPnLReport() {
       </div>
 
       {/* Summary band */}
-      {isLoading ? (
-        <SummaryBandSkeleton />
-      ) : data ? (
-        <SummaryBand
-          income={data.businessTotals.income}
-          expense={data.businessTotals.expense}
-          net={data.businessTotals.net}
-          label={range}
-        />
-      ) : null}
+      <div className="shrink-0">
+        {isLoading ? (
+          <SummaryBandSkeleton />
+        ) : data ? (
+          <SummaryBand
+            income={data.businessTotals.income}
+            expense={data.businessTotals.expense}
+            net={data.businessTotals.net}
+            label={range}
+          />
+        ) : null}
 
-      {/* Error state */}
-      {error && (
-        <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-          Failed to load report.
-        </div>
-      )}
+        {/* Error state */}
+        {error && (
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+            Failed to load report.
+          </div>
+        )}
+      </div>
 
-      {/* Rows */}
-      <div className="flex-1 pb-6">
+      {/* Rows — overflow is a safety valve; with golf and personal collapsed
+          this region should not need to scroll. */}
+      <div className="flex-1 min-h-0 overflow-y-auto pb-6">
         <div className="px-3 space-y-2 mt-3">
           {isLoading ? (
             [...Array(9)].map((_, i) => <RowSkeleton key={i} />)
@@ -324,25 +353,20 @@ export function BusinessPnLReport() {
                 rows={data.businessRows}
                 totals={data.businessTotals}
                 subtotalLabel="Business Total"
-                variant="primary"
                 dateFrom={dateFrom}
                 dateTo={dateTo}
               />
-              <PnLSection
-                title="Golf"
+              <CollapsibleGroup
+                label="Golf"
                 rows={data.golfRows}
                 totals={data.golfTotals}
-                subtotalLabel="Golf Total — separate"
-                variant="aside"
                 dateFrom={dateFrom}
                 dateTo={dateTo}
               />
-              <PnLSection
-                title="Personal"
+              <CollapsibleGroup
+                label="Personal"
                 rows={data.personalRows}
                 totals={data.personalTotals}
-                subtotalLabel="Personal Total — separate"
-                variant="aside"
                 dateFrom={dateFrom}
                 dateTo={dateTo}
               />
