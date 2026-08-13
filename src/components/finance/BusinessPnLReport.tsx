@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { ChevronDown } from "lucide-react"
-import { startOfMonth, startOfYear, subDays, subYears, addDays, format } from "date-fns"
+import { startOfMonth, startOfYear, subDays, format } from "date-fns"
 import { type DateRange } from "react-day-picker"
 import { cn } from "@/lib/utils"
 import { useBusinessPnL, type BusinessPnLRow, type PnLTotals } from "@/lib/hooks/useTransactions"
@@ -11,9 +11,9 @@ import { formatCurrency } from "@/lib/finance/format"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DateRangePicker } from "./DateRangePicker"
 
-type RangeKey = "MTD" | "YTD" | "90d" | "12mo" | "Custom"
+type RangeKey = "MTD" | "YTD" | "Custom"
 
-const CHIPS: RangeKey[] = ["MTD", "YTD", "90d", "12mo", "Custom"]
+const CHIPS: RangeKey[] = ["MTD", "YTD", "Custom"]
 
 function toDateStr(d: Date) {
   return format(d, "yyyy-MM-dd")
@@ -32,10 +32,6 @@ function resolveRange(key: RangeKey, customRange?: DateRange): { dateFrom: strin
       return { dateFrom: toDateStr(startOfMonth(today)), dateTo }
     case "YTD":
       return { dateFrom: toDateStr(startOfYear(today)), dateTo }
-    case "90d":
-      return { dateFrom: toDateStr(subDays(today, 89)), dateTo }
-    case "12mo":
-      return { dateFrom: toDateStr(addDays(subYears(today, 1), 1)), dateTo }
     case "Custom": {
       const r = customRange ?? defaultCustomRange()
       return {
@@ -194,65 +190,22 @@ function PnLRow({ row, dateFrom, dateTo }: { row: BusinessPnLRow; dateFrom: stri
   )
 }
 
-function SectionHeader({ title }: { title: string }) {
-  return (
-    <p className="px-1 pt-3 pb-0.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-      {title}
-    </p>
-  )
-}
-
-function SubtotalRow({ label, totals }: { label: string; totals: PnLTotals }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl bg-muted p-3">
-      <p className="flex-1 min-w-0 truncate text-sm font-semibold">{label}</p>
-      <TotalsTrio income={totals.income} expense={totals.expense} net={totals.net} strong />
-    </div>
-  )
-}
-
-// The businesses group: always fully expanded, never collapsible.
-function PnLSection({
-  title,
-  rows,
-  totals,
-  subtotalLabel,
-  dateFrom,
-  dateTo,
-}: {
-  title: string
-  rows: BusinessPnLRow[]
-  totals: PnLTotals
-  subtotalLabel: string
-  dateFrom: string
-  dateTo: string
-}) {
-  if (rows.length === 0) return null
-  return (
-    <>
-      <SectionHeader title={title} />
-      {rows.map((row) => (
-        <PnLRow key={row.businessId ?? "__personal__"} row={row} dateFrom={dateFrom} dateTo={dateTo} />
-      ))}
-      <SubtotalRow label={subtotalLabel} totals={totals} />
-    </>
-  )
-}
-
-// Golf and personal collapse to their subtotal by default so the report fits
-// the viewport; the totals shown are the same either way. The "separate" tag
-// carries what the old dashed `aside` subtotal did — these are not additive to
-// the business number.
+// All three groups collapse to their subtotal by default so the report fits the
+// viewport; the totals shown are the same either way. The "separate" tag carries
+// what the old dashed `aside` subtotal did — golf and personal are not additive
+// to the business number, so only they get it.
 function CollapsibleGroup({
   label,
   rows,
   totals,
+  separate,
   dateFrom,
   dateTo,
 }: {
   label: string
   rows: BusinessPnLRow[]
   totals: PnLTotals
+  separate?: boolean
   dateFrom: string
   dateTo: string
 }) {
@@ -275,7 +228,9 @@ function CollapsibleGroup({
         />
         <p className="flex-1 min-w-0 truncate text-sm font-semibold">
           {label}
-          <span className="ml-1.5 text-xs font-normal text-muted-foreground">separate</span>
+          {separate && (
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">separate</span>
+          )}
         </p>
         <TotalsTrio income={totals.income} expense={totals.expense} net={totals.net} strong />
       </button>
@@ -340,19 +295,18 @@ export function BusinessPnLReport() {
         )}
       </div>
 
-      {/* Rows — overflow is a safety valve; with golf and personal collapsed
+      {/* Rows — overflow is a safety valve; with all three groups collapsed
           this region should not need to scroll. */}
       <div className="flex-1 min-h-0 overflow-y-auto pb-6">
         <div className="px-3 space-y-2 mt-3">
           {isLoading ? (
-            [...Array(9)].map((_, i) => <RowSkeleton key={i} />)
+            [...Array(3)].map((_, i) => <RowSkeleton key={i} />)
           ) : data ? (
             <>
-              <PnLSection
-                title="Businesses"
+              <CollapsibleGroup
+                label="Businesses"
                 rows={data.businessRows}
                 totals={data.businessTotals}
-                subtotalLabel="Business Total"
                 dateFrom={dateFrom}
                 dateTo={dateTo}
               />
@@ -360,6 +314,7 @@ export function BusinessPnLReport() {
                 label="Golf"
                 rows={data.golfRows}
                 totals={data.golfTotals}
+                separate
                 dateFrom={dateFrom}
                 dateTo={dateTo}
               />
@@ -367,6 +322,7 @@ export function BusinessPnLReport() {
                 label="Personal"
                 rows={data.personalRows}
                 totals={data.personalTotals}
+                separate
                 dateFrom={dateFrom}
                 dateTo={dateTo}
               />
