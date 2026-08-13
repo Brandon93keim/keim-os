@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import { format } from "date-fns"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import {
@@ -17,12 +16,18 @@ import { cn } from "@/lib/utils"
 import {
   useIncomeReview,
   type IncomePeriod,
-  type IncomeStream,
 } from "@/lib/hooks/useTransactions"
 import { formatCurrency } from "@/lib/finance/format"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
-type Axis = "combined" | "stream"
+const ALL_BUSINESSES = "all"
 
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -45,11 +50,11 @@ function HeroSkeleton() {
   )
 }
 
-function RowSkeleton() {
+function ChartSkeleton() {
   return (
-    <div className="rounded-xl bg-muted/60 p-3 flex items-center justify-between">
-      <Skeleton className="h-4 w-24" />
-      <Skeleton className="h-4 w-20" />
+    <div className="space-y-2">
+      <Skeleton className="h-[220px] w-full rounded-xl" />
+      <Skeleton className="h-9 w-full rounded-lg" />
     </div>
   )
 }
@@ -73,11 +78,11 @@ function PeriodTooltip({
   )
 }
 
-// Aggregate business totals, so one fill for every bar — per-business color would
-// imply an identity split the combined axis doesn't have. Periods arrive
-// pre-seeded (all 12 months, or every year in all-time mode), so months with no
-// income sit flat on the baseline instead of dropping out of the axis.
-function PeriodBarChart({ periods }: { periods: IncomePeriod[] }) {
+// One fill for the whole series: the bars are a single business (its own color)
+// or every business summed (brand green), never a mix. Periods arrive pre-seeded
+// (all 12 months, or every year in all-time mode), so months with no income sit
+// flat on the baseline instead of dropping out of the axis.
+function PeriodBarChart({ periods, fill }: { periods: IncomePeriod[]; fill: string }) {
   return (
     <ResponsiveContainer width="100%" height={220}>
       <BarChart data={periods} margin={{ top: 8, right: 4, bottom: 0, left: -12 }}>
@@ -102,7 +107,7 @@ function PeriodBarChart({ periods }: { periods: IncomePeriod[] }) {
         />
         <Bar
           dataKey="total"
-          fill="var(--chart-income)"
+          fill={fill}
           radius={[4, 4, 0, 0]}
           maxBarSize={24}
         />
@@ -111,72 +116,10 @@ function PeriodBarChart({ periods }: { periods: IncomePeriod[] }) {
   )
 }
 
-function StreamSection({
-  title,
-  streams,
-  total,
-  totalLabel,
-  variant,
-  from,
-  to,
-}: {
-  title: string
-  streams: IncomeStream[]
-  total: number
-  totalLabel: string
-  variant: "primary" | "aside"
-  from: string
-  to: string
-}) {
-  if (streams.length === 0) return null
-  const aside = variant === "aside"
-  return (
-    <>
-      <p className="px-1 pt-3 pb-0.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {title}
-      </p>
-      {streams.map((stream) => {
-        const bizParam = stream.businessId ?? "personal"
-        const href = `/money/transactions?business=${bizParam}&from=${from}&to=${to}`
-        return (
-          <Link
-            key={stream.businessId ?? "__personal__"}
-            href={href}
-            className="flex items-center gap-3 rounded-xl bg-muted/60 p-3 transition-colors active:bg-muted hover:bg-muted/80"
-          >
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: stream.color }}
-            />
-            <span className="flex-1 min-w-0 text-sm font-medium truncate">{stream.businessName}</span>
-            <span className="text-sm tabular-nums">{formatCurrency(stream.income)}</span>
-          </Link>
-        )
-      })}
-      <div
-        className={cn(
-          "flex items-center justify-between rounded-xl p-3",
-          aside ? "border border-dashed border-border" : "bg-muted"
-        )}
-      >
-        <span
-          className={cn(
-            "text-sm font-semibold",
-            aside && "font-medium text-muted-foreground"
-          )}
-        >
-          {totalLabel}
-        </span>
-        <span className="text-sm font-semibold tabular-nums">{formatCurrency(total)}</span>
-      </div>
-    </>
-  )
-}
-
 export function IncomeReview() {
   const [year, setYear] = useState(CURRENT_YEAR)
   const [allTime, setAllTime] = useState(false)
-  const [axis, setAxis] = useState<Axis>("combined")
+  const [selectedBusiness, setSelectedBusiness] = useState<string>(ALL_BUSINESSES)
 
   const today = format(new Date(), "yyyy-MM-dd")
 
@@ -185,6 +128,13 @@ export function IncomeReview() {
   const granularity: "month" | "year" = allTime ? "year" : "month"
 
   const { data, isLoading, error } = useIncomeReview(from, to, granularity)
+
+  // A business stays selected across year changes even if it earned nothing that
+  // year, so the empty chart reads as "no income here", not a silent reset.
+  const series = data ? data.byBusiness[selectedBusiness] : undefined
+  const periods = series ? series.periods : data?.periods
+  const total = series ? series.total : data?.total
+  const fill = series ? series.color : "var(--chart-income)"
 
   return (
     <>
@@ -223,36 +173,17 @@ export function IncomeReview() {
         </button>
       </div>
 
-      {/* Axis toggle */}
-      <div className="shrink-0 px-4 py-3 flex gap-2">
-        <div className="flex rounded-lg border border-border overflow-hidden flex-1">
-          {(["combined", "stream"] as Axis[]).map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => setAxis(opt)}
-              className={cn(
-                "flex-1 py-1.5 text-xs font-medium transition-colors",
-                axis === opt
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-background text-muted-foreground hover:bg-muted/50"
-              )}
-            >
-              {opt === "combined" ? "Combined" : "By stream"}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Hero */}
+      {/* Hero — reflects the selected series, not always the grand total */}
       <div className="shrink-0">
         {isLoading ? (
           <HeroSkeleton />
         ) : data ? (
-          <div className="px-3 pt-0">
+          <div className="px-3 pt-3">
             <div className="rounded-xl bg-muted/60 px-4 py-4 text-center">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Income</p>
-              <p className="text-3xl font-bold tabular-nums">{formatCurrency(data.total)}</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
+                {series ? series.businessName : "Income"}
+              </p>
+              <p className="text-3xl font-bold tabular-nums">{formatCurrency(total ?? 0)}</p>
             </div>
           </div>
         ) : null}
@@ -263,44 +194,39 @@ export function IncomeReview() {
         )}
       </div>
 
-      {/* Rows */}
+      {/* Chart + business selector */}
       <div className="flex-1 min-h-0 overflow-y-auto pb-6">
         <div className="px-3 space-y-2 mt-3">
           {isLoading ? (
-            [...Array(4)].map((_, i) => <RowSkeleton key={i} />)
-          ) : !data || (data.total === 0 && data.golfTotal === 0 && data.personalTotal === 0) ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">No income in this period.</p>
-          ) : axis === "combined" ? (
-            <PeriodBarChart periods={data.periods} />
-          ) : (
+            <ChartSkeleton />
+          ) : !data || !periods ? null : (
             <>
-              <StreamSection
-                title="Businesses"
-                streams={data.businessStreams}
-                total={data.total}
-                totalLabel="Business Total"
-                variant="primary"
-                from={from}
-                to={to}
-              />
-              <StreamSection
-                title="Golf"
-                streams={data.golfStreams}
-                total={data.golfTotal}
-                totalLabel="Golf Total — separate"
-                variant="aside"
-                from={from}
-                to={to}
-              />
-              <StreamSection
-                title="Personal"
-                streams={data.personalStreams}
-                total={data.personalTotal}
-                totalLabel="Personal Total — separate"
-                variant="aside"
-                from={from}
-                to={to}
-              />
+              {total === 0 ? (
+                <div className="h-[220px] flex items-center justify-center">
+                  <p className="text-sm text-muted-foreground">No income in this period.</p>
+                </div>
+              ) : (
+                <PeriodBarChart periods={periods} fill={fill} />
+              )}
+              <Select value={selectedBusiness} onValueChange={setSelectedBusiness}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_BUSINESSES}>All Businesses</SelectItem>
+                  {Object.values(data.byBusiness).map((biz) => (
+                    <SelectItem key={biz.businessId} value={biz.businessId}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: biz.color }}
+                        />
+                        {biz.businessName}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </>
           )}
         </div>

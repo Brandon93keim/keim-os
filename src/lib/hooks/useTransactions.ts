@@ -108,19 +108,21 @@ export function useBusinessPnL(dateFrom: string, dateTo: string) {
 }
 
 export type IncomePeriod = { key: string; label: string; total: number }
-export type IncomeStream = { businessId: string | null; businessName: string; color: string; income: number }
-export type IncomeReviewResult = {
-  /** Period totals are business-only — golf and personal income is excluded. */
+/** One business unit's income over the same period keys as the combined series. */
+export type IncomeBusinessSeries = {
+  businessId: string
+  businessName: string
+  color: string
   periods: IncomePeriod[]
-  /** Every stream, in the original order. */
-  streams: IncomeStream[]
-  businessStreams: IncomeStream[]
-  golfStreams: IncomeStream[]
-  personalStreams: IncomeStream[]
+  total: number
+}
+export type IncomeReviewResult = {
+  /** Business-only, and the exact sum across every byBusiness series. */
+  periods: IncomePeriod[]
+  /** Per-business breakdown, keyed by business id, in BUSINESSES order. */
+  byBusiness: Record<string, IncomeBusinessSeries>
   /** Business-only grand total. */
   total: number
-  golfTotal: number
-  personalTotal: number
 }
 
 export function useIncomeReview(from: string, to: string, granularity: "month" | "year") {
@@ -141,52 +143,55 @@ export function useIncomeReview(from: string, to: string, granularity: "month" |
         periodKeys = Array.from({ length: endYear - startYear + 1 }, (_, i) => String(startYear + i))
       }
 
-      const periodMap = new Map<string, IncomePeriod>()
-      for (const key of periodKeys) {
-        const label = granularity === "month" ? format(parseISO(key + "-01"), "MMM") : key
-        periodMap.set(key, { key, label, total: 0 })
-      }
+      const labelFor = (key: string) =>
+        granularity === "month" ? format(parseISO(key + "-01"), "MMM") : key
+      const periodIndex = new Map(periodKeys.map((key, i) => [key, i]))
+      const seedPeriods = () => periodKeys.map((key) => ({ key, label: labelFor(key), total: 0 }))
 
-      // Seed streams — same order as P&L (8 BUSINESSES + Personal)
-      const streamMap = new Map<string | null, IncomeStream>()
+      // Seed one series per business-group unit, in BUSINESSES order. Golf and
+      // personal units never get a bucket, so no later step can reintroduce them.
+      const byBusiness: Record<string, IncomeBusinessSeries> = {}
       for (const biz of BUSINESSES) {
-        streamMap.set(biz.id, { businessId: biz.id, businessName: biz.name, color: biz.color, income: 0 })
+        if (getPnLGroup(biz.id) !== "business") continue
+        byBusiness[biz.id] = {
+          businessId: biz.id,
+          businessName: biz.name,
+          color: biz.color,
+          periods: seedPeriods(),
+          total: 0,
+        }
       }
-      streamMap.set(null, { businessId: null, businessName: "Personal", color: "#9CA3AF", income: 0 })
 
       for (const tx of income) {
-        const amount = Number(tx.amount)
         const businessId = tx.business_id ?? null
+        // Business-only, for every series alike. Unknown ids read as "personal"
+        // (see getPnLGroup) and drop out here rather than landing in a bucket.
+        if (!businessId || getPnLGroup(businessId) !== "business") continue
 
-        // Period totals are business-only; golf and personal still show as streams.
-        if (getPnLGroup(businessId) === "business") {
-          const periodKey = granularity === "month" ? tx.occurred_on.slice(0, 7) : tx.occurred_on.slice(0, 4)
-          const period = periodMap.get(periodKey)
-          if (period) period.total += amount
-        }
+        const periodKey =
+          granularity === "month" ? tx.occurred_on.slice(0, 7) : tx.occurred_on.slice(0, 4)
+        const index = periodIndex.get(periodKey)
+        if (index === undefined) continue
 
-        const stream = streamMap.get(businessId) ?? streamMap.get(null)!
-        stream.income += amount
+        const amount = Number(tx.amount)
+        const series = byBusiness[businessId]
+        series.periods[index].total += amount
+        series.total += amount
       }
 
-      const periods = periodKeys.map((k) => periodMap.get(k)!)
-      const streams: IncomeStream[] = [...BUSINESSES.map((b) => streamMap.get(b.id)!), streamMap.get(null)!]
-
-      const businessStreams = streams.filter((s) => getPnLGroup(s.businessId) === "business")
-      const golfStreams = streams.filter((s) => getPnLGroup(s.businessId) === "golf")
-      const personalStreams = streams.filter((s) => getPnLGroup(s.businessId) === "personal")
-
-      const sumIncome = (list: IncomeStream[]) => list.reduce((acc, s) => acc + s.income, 0)
+      // Combined is derived from the per-business series, so the "All" bars and
+      // a single business's bars can never disagree.
+      const seriesList = Object.values(byBusiness)
+      const periods = periodKeys.map((key, i) => ({
+        key,
+        label: labelFor(key),
+        total: seriesList.reduce((acc, s) => acc + s.periods[i].total, 0),
+      }))
 
       return {
         periods,
-        streams,
-        businessStreams,
-        golfStreams,
-        personalStreams,
-        total: sumIncome(businessStreams),
-        golfTotal: sumIncome(golfStreams),
-        personalTotal: sumIncome(personalStreams),
+        byBusiness,
+        total: seriesList.reduce((acc, s) => acc + s.total, 0),
       }
     },
   })
