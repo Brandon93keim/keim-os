@@ -164,9 +164,13 @@ export function AccountList() {
                 onClick={() => router.push("/money/budgets")}
               />
               <MoneyCube
+                label="Taxes"
+                sublabel="quarterly estimates"
+                onClick={() => router.push("/money/taxes")}
+              />
+              <MoneyCube
                 label="Mileage"
                 sublabel="tax log"
-                className="col-span-2 min-h-0"
                 onClick={() => router.push("/money/mileage")}
               />
             </>

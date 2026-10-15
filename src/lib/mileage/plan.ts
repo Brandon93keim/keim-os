@@ -29,6 +29,8 @@ export const LONG_LEG_MILES = 300
 
 export const METERS_PER_MILE = 1609.344
 
+export const APPROX_NOTE = "Location only matched a city or area, so miles are approximate."
+
 export function normalizeLocation(s: string): string {
   return s.trim().replace(/\s+/g, " ").toLowerCase()
 }
@@ -74,17 +76,20 @@ export function allocate(stops: PlanStop[], legMiles: number[]): PlannedStop[] {
     if (isLast) legs.push(legMiles[leg++])
     const miles = round1(legs.reduce((a, b) => a + b, 0))
 
-    const reasons: string[] = []
-    if (legs.some((m) => m > LONG_LEG_MILES)) reasons.push(`A leg is over ${LONG_LEG_MILES} mi. Did you drive, or fly?`)
-    if (s.approximate) reasons.push("Address only matched a city or area, so miles are approximate.")
+    // City-level matches still count (a few miles off at most); they just carry a note.
+    // Only a likely flight blocks the trip until you confirm it.
+    const longLeg = legs.some((m) => m > LONG_LEG_MILES)
+    const notes: string[] = []
+    if (longLeg) notes.push(`A leg is over ${LONG_LEG_MILES} mi. Did you drive, or fly?`)
+    if (s.approximate) notes.push(APPROX_NOTE)
 
     out.push({
       key: s.key,
       fromLabel: prevLabel,
       includesReturn: isLast,
       miles,
-      status: reasons.length ? "review" : "ok",
-      reviewReason: reasons.length ? reasons.join(" ") : null,
+      status: longLeg ? "review" : "ok",
+      reviewReason: notes.length ? notes.join(" ") : null,
     })
     prevLabel = s.location.trim()
   }

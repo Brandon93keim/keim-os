@@ -56,3 +56,26 @@ export async function routeLegsMeters(points: LatLng[]): Promise<number[]> {
   if (body.code !== "Ok" || !body.routes?.length) throw new Error(`Router: ${body.code}`)
   return body.routes[0].legs.map((l) => l.distance)
 }
+
+/** Coordinates -> a short street address ("123 Main St, Metairie, LA"). */
+export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+  const url = new URL("/reverse", NOMINATIM)
+  url.searchParams.set("lat", String(lat))
+  url.searchParams.set("lon", String(lng))
+  url.searchParams.set("format", "jsonv2")
+  url.searchParams.set("addressdetails", "1")
+  url.searchParams.set("zoom", "18")
+  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" } })
+  if (!res.ok) throw new Error(`Geocoder error ${res.status}`)
+  const r = (await res.json()) as {
+    display_name?: string
+    name?: string
+    address?: Record<string, string>
+  }
+  const a = r.address ?? {}
+  const street = [a.house_number, a.road].filter(Boolean).join(" ")
+  const city = a.city ?? a.town ?? a.village ?? a.hamlet ?? a.suburb ?? a.county
+  const state = a["ISO3166-2-lvl4"]?.split("-")[1] ?? a.state
+  const parts = [r.name && r.name !== a.road ? r.name : null, street || null, city, state].filter(Boolean)
+  return parts.length ? parts.join(", ") : r.display_name ?? null
+}

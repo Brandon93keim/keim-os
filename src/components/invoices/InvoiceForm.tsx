@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react"
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { addDays, format } from "date-fns"
@@ -38,6 +38,8 @@ import { useProfile } from "@/lib/hooks/useProfile"
 import { getInvoice } from "@/lib/queries/invoices"
 import { downloadInvoicePdf } from "@/lib/pdf"
 import { cn } from "@/lib/utils"
+import { useRoundTripMiles } from "@/lib/hooks/useMileage"
+import { mileageRateFor } from "@/lib/mileage/rates"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -496,6 +498,7 @@ export function InvoiceForm({ invoice, prefillJob, onSuccess, onCancel }: Props)
               <Plus size={14} />
               Add line item
             </button>
+            <MileageToggles form={form} isNew={!invoice} append={append} remove={remove} />
             {form.formState.errors.line_items?.root?.message && (
               <p className="mt-1 text-xs text-destructive">
                 {form.formState.errors.line_items.root.message}
@@ -934,6 +937,99 @@ function LineItemRow({ id, index, form, onEdit }: LineItemRowProps) {
           ${rowTotal.toFixed(2)}
         </span>
       </button>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MileageToggles — one "mileage?" switch per job on the invoice. Turning it on
+// adds a line: Home → site → Home miles × the IRS rate for the invoice year.
+// Legal jobs get mileage by default on new invoices.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LEGAL_BUSINESS = "brandon-keim-legal-work"
+const isMileageLine = (d: string | null | undefined) => /\bmileage\b/i.test(d ?? "")
+
+function MileageToggles({
+  form,
+  isNew,
+  append,
+  remove,
+}: {
+  form: ReturnType<typeof useForm<InvoiceFormInput>>
+  isNew: boolean
+  append: (v: LineItemFormInput) => void
+  remove: (index: number) => void
+}) {
+  const items = form.watch("line_items") ?? []
+  const businessId = form.watch("business_id")
+  const issueDate = form.watch("issue_date")
+  const year = issueDate ? new Date(issueDate).getFullYear() : new Date().getFullYear()
+  const rate = mileageRateFor(year).rate
+
+  // Jobs on this invoice = event-linked lines that aren't mileage lines.
+  const jobs: { eventId: string; title: string }[] = []
+  for (const li of items) {
+    if (li.event_id && !isMileageLine(li.description) && !jobs.some((j) => j.eventId === li.event_id)) {
+      jobs.push({ eventId: li.event_id, title: (li.description || "Job").trim() })
+    }
+  }
+  const { data: miles = {}, isLoading } = useRoundTripMiles(jobs.map((j) => j.eventId))
+
+  const mileageIndex = (eventId: string) =>
+    items.findIndex((li) => li.event_id === eventId && isMileageLine(li.description))
+
+  const addLine = (eventId: string, title: string) =>
+    append({
+      id: undefined,
+      event_id: eventId,
+      description: `Mileage – ${title}`,
+      quantity: miles[eventId] ?? 1,
+      unit_price: rate,
+      unit_type: "quantity",
+    })
+
+  // Default: legal jobs get mileage on a brand-new invoice (once per job).
+  const autoAdded = useRef(new Set<string>())
+  useEffect(() => {
+    if (!isNew || businessId !== LEGAL_BUSINESS || isLoading) return
+    for (const j of jobs) {
+      if (autoAdded.current.has(j.eventId)) continue
+      autoAdded.current.add(j.eventId)
+      if (mileageIndex(j.eventId) === -1 && miles[j.eventId] != null) addLine(j.eventId, j.title)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew, businessId, isLoading, miles, jobs.map((j) => j.eventId).join(",")])
+
+  if (!jobs.length) return null
+
+  return (
+    <div className="mt-3 rounded-lg border border-border p-2.5 space-y-2">
+      <p className="text-xs text-muted-foreground">
+        Mileage · home → site → home at ${rate.toFixed(3)}/mi (IRS {year})
+      </p>
+      {jobs.map((j) => {
+        const idx = mileageIndex(j.eventId)
+        const on = idx !== -1
+        const m = miles[j.eventId]
+        return (
+          <label key={j.eventId} className="flex items-center gap-2.5 text-sm">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={on}
+              onChange={(e) => {
+                if (e.target.checked) addLine(j.eventId, j.title)
+                else if (idx !== -1) remove(idx)
+              }}
+            />
+            <span className="min-w-0 flex-1 truncate">{j.title}</span>
+            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+              {isLoading ? "…" : m != null ? `${m} mi` : "no address"}
+            </span>
+          </label>
+        )
+      })}
     </div>
   )
 }

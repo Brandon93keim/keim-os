@@ -201,6 +201,11 @@ export type Database = {
           type: string
           updated_at: string
           user_id: string
+          arrived_at: string | null
+          arrived_lat: number | null
+          arrived_lng: number | null
+          arrived_address: string | null
+          roundtrip_miles: number | null
         }
         Insert: {
           all_day?: boolean
@@ -226,6 +231,11 @@ export type Database = {
           type: string
           updated_at?: string
           user_id: string
+          arrived_at?: string | null
+          arrived_lat?: number | null
+          arrived_lng?: number | null
+          arrived_address?: string | null
+          roundtrip_miles?: number | null
         }
         Update: {
           all_day?: boolean
@@ -251,6 +261,11 @@ export type Database = {
           type?: string
           updated_at?: string
           user_id?: string
+          arrived_at?: string | null
+          arrived_lat?: number | null
+          arrived_lng?: number | null
+          arrived_address?: string | null
+          roundtrip_miles?: number | null
         }
         Relationships: [
           {
@@ -1177,6 +1192,89 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tax_settings: {
+        Row: {
+          user_id: string
+          tax_year: number
+          filing_status: 'single' | 'mfj'
+          prior_year_federal_tax: number | null
+          prior_year_agi_over_150k: boolean
+          solo401k_deferral: number
+          solo401k_employer: number
+          roth_ira_planned: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          tax_year: number
+          filing_status?: 'single' | 'mfj'
+          prior_year_federal_tax?: number | null
+          prior_year_agi_over_150k?: boolean
+          solo401k_deferral?: number
+          solo401k_employer?: number
+          roth_ira_planned?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          tax_year?: number
+          filing_status?: 'single' | 'mfj'
+          prior_year_federal_tax?: number | null
+          prior_year_agi_over_150k?: boolean
+          solo401k_deferral?: number
+          solo401k_employer?: number
+          roth_ira_planned?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tax_payments: {
+        Row: {
+          id: string
+          user_id: string
+          tax_year: number
+          jurisdiction: 'federal' | 'louisiana'
+          paid_on: string
+          amount: number
+          transaction_id: string | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          tax_year: number
+          jurisdiction: 'federal' | 'louisiana'
+          paid_on: string
+          amount: number
+          transaction_id?: string | null
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          tax_year?: number
+          jurisdiction?: 'federal' | 'louisiana'
+          paid_on?: string
+          amount?: number
+          transaction_id?: string | null
+          notes?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tax_payments_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
         ]
