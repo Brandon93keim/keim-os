@@ -258,7 +258,7 @@ export async function syncTripsFromCalendar(
   // Pull a padded UTC window, then filter to local dates.
   const { data: rawEvents, error: evErr } = await supabase
     .from("events")
-    .select("id, title, location, business_id, job_id, start_time, status, type, rrule")
+    .select("id, title, location, business_id, job_id, start_time, status, type, rrule, arrived_lat, arrived_lng")
     .eq("user_id", userId)
     .in("type", BUSINESS_EVENT_TYPES)
     .neq("status", "cancelled")
@@ -287,7 +287,12 @@ export async function syncTripsFromCalendar(
   // Events you marked "not business" stay out of the day's route.
   const routable = events.filter((e) => byEvent.get(e.id)?.status !== "excluded")
 
-  const geo = await resolveLocations(userId, routable.map((e) => e.location as string), onProgress)
+  // Events you checked in at already have an exact GPS spot; only look up the rest.
+  const geo = await resolveLocations(
+    userId,
+    routable.filter((e) => e.arrived_lat == null).map((e) => e.location as string),
+    onProgress
+  )
 
   // Group by day, keep calendar order.
   const days = new Map<string, typeof routable>()
@@ -316,7 +321,10 @@ export async function syncTripsFromCalendar(
         sameAsPrev.set(e.id, prev.key)
         continue
       }
-      const hit = geo.get(key) ?? { coord: null, approximate: false }
+      const hit =
+        e.arrived_lat != null && e.arrived_lng != null
+          ? { coord: { lat: e.arrived_lat, lng: e.arrived_lng }, approximate: false }
+          : geo.get(key) ?? { coord: null, approximate: false }
       stops.push({ key: e.id, location: e.location as string, coord: hit.coord, approximate: hit.approximate })
     }
 
@@ -444,4 +452,126 @@ export async function setEventLocation(eventId: string, location: string): Promi
   const supabase = createClient()
   const { error } = await supabase.from("events").update({ location: location.trim() }).eq("id", eventId)
   if (error) throw error
+}
+
+// ------------------------------------------------------------
+// "I'm here" check-in + round-trip miles for invoices
+// ------------------------------------------------------------
+
+async function reverseAddress(lat: number, lng: number): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/mileage/reverse?lat=${lat}&lng=${lng}`)
+    const body = await res.json()
+    return res.ok ? (body.address as string | null) : null
+  } catch {
+    return null
+  }
+}
+
+async function roundTripFromHome(home: LatLng, site: LatLng): Promise<number> {
+  const legs = await routeMiles([home, site, home])
+  return Math.round(legs.reduce((a, b) => a + b, 0) * 10) / 10
+}
+
+export type CheckInResult = { address: string | null; roundtripMiles: number; filledLocation: boolean }
+
+/**
+ * Record that you're on site for an event: saves the GPS spot, fills the event's
+ * location if it was blank, stores Home -> here -> Home miles (used on invoices),
+ * and refreshes that day's tax mileage.
+ */
+export async function checkInAtEvent(
+  event: { id: string; start_time: string; location: string | null },
+  position: LatLng
+): Promise<CheckInResult> {
+  const supabase = createClient()
+  const settings = await getMileageSettings()
+  if (!settings) throw new Error("Set your home address in Money → Mileage first.")
+  const home: LatLng = { lat: settings.home_lat, lng: settings.home_lng }
+
+  const [address, roundtripMiles] = await Promise.all([
+    reverseAddress(position.lat, position.lng),
+    roundTripFromHome(home, position),
+  ])
+  const fillLocation = !event.location || !event.location.trim()
+  const { error } = await supabase
+    .from("events")
+    .update({
+      arrived_at: new Date().toISOString(),
+      arrived_lat: position.lat,
+      arrived_lng: position.lng,
+      arrived_address: address,
+      roundtrip_miles: roundtripMiles,
+      ...(fillLocation ? { location: address ?? `${position.lat.toFixed(5)}, ${position.lng.toFixed(5)}` } : {}),
+    })
+    .eq("id", event.id)
+  if (error) throw error
+
+  // Keep the tax log current for that day (best effort).
+  const day = localDate(event.start_time)
+  try {
+    await syncTripsFromCalendar(day, day)
+  } catch {
+    /* the Mileage page sync will catch up */
+  }
+  return { address, roundtripMiles, filledLocation: fillLocation }
+}
+
+/**
+ * Home -> site -> Home miles for each event, for invoice mileage lines.
+ * Uses the check-in miles when you checked in; otherwise routes the event's
+ * address once and saves the result on the event.
+ */
+export async function getRoundTripMiles(eventIds: string[]): Promise<Record<string, number | null>> {
+  const out: Record<string, number | null> = {}
+  if (!eventIds.length) return out
+  const supabase = createClient()
+  const userId = await getUserId()
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, location, roundtrip_miles, arrived_lat, arrived_lng")
+    .in("id", eventIds)
+  if (error) throw error
+
+  const todo = (data ?? []).filter((e) => {
+    if (e.roundtrip_miles != null) {
+      out[e.id] = Number(e.roundtrip_miles)
+      return false
+    }
+    if (e.arrived_lat == null && !(e.location && e.location.trim())) {
+      out[e.id] = null
+      return false
+    }
+    return true
+  })
+  if (!todo.length) return out
+
+  const settings = await getMileageSettings()
+  if (!settings) {
+    for (const e of todo) out[e.id] = null
+    return out
+  }
+  const home: LatLng = { lat: settings.home_lat, lng: settings.home_lng }
+  const geo = await resolveLocations(
+    userId,
+    todo.filter((e) => e.arrived_lat == null).map((e) => e.location as string)
+  )
+  for (const e of todo) {
+    const coord =
+      e.arrived_lat != null && e.arrived_lng != null
+        ? { lat: e.arrived_lat, lng: e.arrived_lng }
+        : geo.get(normalizeLocation(e.location as string))?.coord ?? null
+    if (!coord) {
+      out[e.id] = null
+      continue
+    }
+    try {
+      const miles = await roundTripFromHome(home, coord)
+      out[e.id] = miles
+      await supabase.from("events").update({ roundtrip_miles: miles }).eq("id", e.id)
+    } catch {
+      out[e.id] = null
+    }
+  }
+  return out
 }

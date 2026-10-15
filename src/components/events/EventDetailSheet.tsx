@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { format, parseISO } from "date-fns"
-import { AlertCircle, Bell, MapPin, Plus, User, Edit2, Trash2, Repeat } from "lucide-react"
+import { AlertCircle, Bell, MapPin, Plus, User, Edit2, Trash2, Repeat, Navigation, CheckCircle2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import {
   Sheet,
@@ -41,6 +41,7 @@ import { countSeriesOccurrences } from "@/lib/queries/events"
 import { RecurringEditDialog, type RecurringScope } from "./RecurringEditDialog"
 import { EditJobDialog } from "@/components/jobs/EditJobDialog"
 import { TaskFormSheet } from "@/components/tasks/TaskFormSheet"
+import { useCheckIn } from "@/lib/hooks/useMileage"
 
 interface Props {
   open: boolean
@@ -430,6 +431,10 @@ export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice
               </a>
             )}
 
+            {(event.type === "job" || event.type === "meeting") && event.business_id && !event.is_recurring_instance && (
+              <CheckInBlock event={event} />
+            )}
+
             {event.description && (
               <p className="text-sm text-foreground whitespace-pre-wrap">{event.description}</p>
             )}
@@ -577,5 +582,41 @@ export function EventDetailSheet({ open, onClose, event, onEdit, onCreateInvoice
         </AlertDialogContent>
       </AlertDialog>
     </>
+  )
+}
+
+function CheckInBlock({ event }: { event: CalEvent }) {
+  const checkIn = useCheckIn()
+  const isToday = format(new Date(event.start_time), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
+
+  const justCheckedIn = checkIn.isSuccess ? checkIn.data : null
+  if (event.arrived_at || justCheckedIn) {
+    const at = event.arrived_at ?? new Date().toISOString()
+    const miles = justCheckedIn?.roundtripMiles ?? (event.roundtrip_miles != null ? Number(event.roundtrip_miles) : null)
+    const address = justCheckedIn?.address ?? event.arrived_address
+    return (
+      <div className="flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2 text-sm">
+        <CheckCircle2 size={15} className="shrink-0 mt-0.5 text-green-600" />
+        <div className="min-w-0">
+          <p>
+            Checked in {format(new Date(at), "h:mm a")}
+            {miles != null && ` · ${miles} mi round trip from home`}
+          </p>
+          {address && <p className="text-xs text-muted-foreground truncate">{address}</p>}
+        </div>
+      </div>
+    )
+  }
+  if (!isToday) return null
+  return (
+    <Button
+      variant="secondary"
+      className="w-full"
+      disabled={checkIn.isPending}
+      onClick={() => checkIn.mutate({ id: event.id, start_time: event.start_time, location: event.location })}
+    >
+      <Navigation size={16} />
+      {checkIn.isPending ? "Getting your location..." : "I'm here"}
+    </Button>
   )
 }

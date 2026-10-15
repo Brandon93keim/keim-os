@@ -201,6 +201,11 @@ export type Database = {
           type: string
           updated_at: string
           user_id: string
+          arrived_at: string | null
+          arrived_lat: number | null
+          arrived_lng: number | null
+          arrived_address: string | null
+          roundtrip_miles: number | null
         }
         Insert: {
           all_day?: boolean
@@ -226,6 +231,11 @@ export type Database = {
           type: string
           updated_at?: string
           user_id: string
+          arrived_at?: string | null
+          arrived_lat?: number | null
+          arrived_lng?: number | null
+          arrived_address?: string | null
+          roundtrip_miles?: number | null
         }
         Update: {
           all_day?: boolean
@@ -251,6 +261,11 @@ export type Database = {
           type?: string
           updated_at?: string
           user_id?: string
+          arrived_at?: string | null
+          arrived_lat?: number | null
+          arrived_lng?: number | null
+          arrived_address?: string | null
+          roundtrip_miles?: number | null
         }
         Relationships: [
           {

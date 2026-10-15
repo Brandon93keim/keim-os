@@ -12,6 +12,8 @@ import {
   syncTripsFromCalendar,
   listEventsMissingLocation,
   setEventLocation,
+  checkInAtEvent,
+  getRoundTripMiles,
   type MileageTrip,
   type ManualTripValues,
   type TripUpdateValues,
@@ -106,6 +108,55 @@ export function useSetEventLocation() {
       qc.invalidateQueries({ queryKey: ["events"] })
     },
     onError: (err: Error) => toast.error(err.message ?? "Couldn't save location"),
+  })
+}
+
+/** Ask the phone for its location once. Resolves with lat/lng or rejects with a readable message. */
+export function getCurrentPosition(): Promise<{ lat: number; lng: number }> {
+  return new Promise((resolve, reject) => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      reject(new Error("This device can't share its location."))
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      (err) =>
+        reject(
+          new Error(
+            err.code === err.PERMISSION_DENIED
+              ? "Location is blocked. Allow location for this app in Settings › Safari (or your browser) and try again."
+              : "Couldn't get your location. Try again with a clear view of the sky."
+          )
+        ),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
+    )
+  })
+}
+
+export function useCheckIn() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (event: { id: string; start_time: string; location: string | null }) => {
+      const pos = await getCurrentPosition()
+      return checkInAtEvent(event, pos)
+    },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["events"] })
+      qc.invalidateQueries({ queryKey: ["mileage"] })
+      qc.invalidateQueries({ queryKey: ["taxes"] })
+      toast.success(`Checked in · ${r.roundtripMiles} mi round trip from home`)
+    },
+    onError: (err: Error) => toast.error(err.message ?? "Check-in failed"),
+  })
+}
+
+export function useRoundTripMiles(eventIds: string[]) {
+  const key = [...eventIds].sort()
+  return useQuery({
+    queryKey: ["mileage", "roundtrip", key],
+    queryFn: () => getRoundTripMiles(key),
+    enabled: key.length > 0,
+    staleTime: 5 * 60 * 1000,
   })
 }
 
