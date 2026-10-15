@@ -406,3 +406,42 @@ export async function syncTripsFromCalendar(
 
   return { days: days.size, trips: written, review, removed }
 }
+
+// ------------------------------------------------------------
+// Business events with no location (they can't be routed)
+// ------------------------------------------------------------
+
+export type EventMissingLocation = {
+  id: string
+  title: string
+  date: string
+  business_id: string | null
+}
+
+export async function listEventsMissingLocation(from: string, to: string): Promise<EventMissingLocation[]> {
+  const supabase = createClient()
+  const userId = await getUserId()
+  const { data, error } = await supabase
+    .from("events")
+    .select("id, title, start_time, business_id, location")
+    .eq("user_id", userId)
+    .in("type", BUSINESS_EVENT_TYPES)
+    .neq("status", "cancelled")
+    .is("rrule", null)
+    .not("business_id", "is", null)
+    .gte("start_time", shiftDate(from, -1) + "T00:00:00Z")
+    .lt("start_time", shiftDate(to, 2) + "T00:00:00Z")
+    .order("start_time", { ascending: false })
+  if (error) throw error
+  return (data ?? [])
+    .filter((e) => !e.location || !e.location.trim())
+    .map((e) => ({ id: e.id, title: e.title, date: localDate(e.start_time), business_id: e.business_id }))
+    .filter((e) => e.date >= from && e.date <= to)
+}
+
+/** Set an event's location (edits the calendar event itself). */
+export async function setEventLocation(eventId: string, location: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from("events").update({ location: location.trim() }).eq("id", eventId)
+  if (error) throw error
+}
