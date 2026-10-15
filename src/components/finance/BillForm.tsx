@@ -28,6 +28,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select"
 import {
   AlertDialog,
@@ -68,6 +70,11 @@ export function BillForm({ bill, onSuccess, onCancel }: Props) {
   const liabilityAccounts = useMemo(
     () => accounts.filter((a) => a.kind === "liability" && a.is_active),
     [accounts]
+  )
+  // Cards you can charge a bill to (revolving credit, not financing like Affirm).
+  const chargeableCards = useMemo(
+    () => liabilityAccounts.filter((a) => a.type === "credit_card" && a.credit_subtype !== "financing"),
+    [liabilityAccounts]
   )
 
   const form = useForm<BillFormValues>({
@@ -110,8 +117,11 @@ export function BillForm({ bill, onSuccess, onCancel }: Props) {
   useEffect(() => {
     if (transactionType === "expense") {
       form.setValue("pays_down_account_id", null, { shouldValidate: false })
+    } else if (defaultAccountId && !assetAccounts.some((a) => a.id === defaultAccountId)) {
+      // Transfers (paying down a card) must come from a bank account.
+      form.setValue("default_account_id", "", { shouldValidate: false })
     }
-  }, [transactionType, form])
+  }, [transactionType, form, defaultAccountId, assetAccounts])
 
   useEffect(() => {
     if (amountMode === "variable") {
@@ -249,13 +259,29 @@ export function BillForm({ bill, onSuccess, onCancel }: Props) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {assetAccounts.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.name}
-                        </SelectItem>
-                      ))}
+                      <SelectGroup>
+                        {transactionType === "expense" && chargeableCards.length > 0 && <SelectLabel>Bank</SelectLabel>}
+                        {assetAccounts.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      {transactionType === "expense" && chargeableCards.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel>Credit cards</SelectLabel>
+                          {chargeableCards.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
                     </SelectContent>
                   </Select>
+                  {transactionType === "expense" && (
+                    <FormDescription>Pick a card if this bill auto-charges to it.</FormDescription>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}

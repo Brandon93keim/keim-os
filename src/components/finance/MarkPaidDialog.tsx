@@ -30,6 +30,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select"
 import type { RecordBillPaymentContext } from "@/lib/queries/bills"
 
@@ -56,6 +58,17 @@ export function MarkPaidDialog({ open, onClose, ctx, onEdit }: Props) {
           (ctx.transactionType !== "transfer" || a.id !== ctx.paysDownAccountId)
       ),
     [accounts, ctx.transactionType, ctx.paysDownAccountId]
+  )
+
+  // Expense bills can also be charged to a revolving credit card.
+  const chargeableCards = useMemo(
+    () =>
+      ctx.transactionType === "expense"
+        ? accounts.filter(
+            (a) => a.kind === "liability" && a.is_active && a.type === "credit_card" && a.credit_subtype !== "financing"
+          )
+        : [],
+    [accounts, ctx.transactionType]
   )
 
   const paysDownAccount = useMemo(
@@ -183,11 +196,24 @@ export function MarkPaidDialog({ open, onClose, ctx, onEdit }: Props) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {assetAccounts.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.name}
-                        </SelectItem>
-                      ))}
+                      <SelectGroup>
+                        {chargeableCards.length > 0 && <SelectLabel>Bank</SelectLabel>}
+                        {assetAccounts.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      {chargeableCards.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel>Credit cards</SelectLabel>
+                          {chargeableCards.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
                     </SelectContent>
                   </Select>
                   <FormMessage />
