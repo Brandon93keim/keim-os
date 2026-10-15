@@ -1208,6 +1208,13 @@ export type Database = {
           roth_ira_planned: number
           created_at: string
           updated_at: string
+          home_office_sqft: number
+          home_total_sqft: number
+          home_insurance_annual: number
+          property_tax_annual: number
+          home_building_basis: number
+          home_in_service_date: string | null
+          home_office_method: 'auto' | 'simplified' | 'actual'
         }
         Insert: {
           user_id: string
@@ -1220,6 +1227,13 @@ export type Database = {
           roth_ira_planned?: number
           created_at?: string
           updated_at?: string
+          home_office_sqft?: number
+          home_total_sqft?: number
+          home_insurance_annual?: number
+          property_tax_annual?: number
+          home_building_basis?: number
+          home_in_service_date?: string | null
+          home_office_method?: 'auto' | 'simplified' | 'actual'
         }
         Update: {
           user_id?: string
@@ -1232,6 +1246,13 @@ export type Database = {
           roth_ira_planned?: number
           created_at?: string
           updated_at?: string
+          home_office_sqft?: number
+          home_total_sqft?: number
+          home_insurance_annual?: number
+          property_tax_annual?: number
+          home_building_basis?: number
+          home_in_service_date?: string | null
+          home_office_method?: 'auto' | 'simplified' | 'actual'
         }
         Relationships: []
       }
