@@ -1043,6 +1043,144 @@ export type Database = {
           },
         ]
       }
+      mileage_settings: {
+        Row: {
+          user_id: string
+          home_address: string
+          home_lat: number
+          home_lng: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          home_address: string
+          home_lat: number
+          home_lng: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          home_address?: string
+          home_lat?: number
+          home_lng?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      geocode_cache: {
+        Row: {
+          id: string
+          user_id: string
+          query: string
+          lat: number | null
+          lng: number | null
+          label: string | null
+          precision: 'exact' | 'approximate' | 'failed'
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          query: string
+          lat?: number | null
+          lng?: number | null
+          label?: string | null
+          precision?: 'exact' | 'approximate' | 'failed'
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          query?: string
+          lat?: number | null
+          lng?: number | null
+          label?: string | null
+          precision?: 'exact' | 'approximate' | 'failed'
+          created_at?: string
+        }
+        Relationships: []
+      }
+      mileage_trips: {
+        Row: {
+          id: string
+          user_id: string
+          trip_date: string
+          business_id: string | null
+          event_id: string | null
+          job_id: string | null
+          purpose: string
+          destination: string
+          from_label: string | null
+          miles: number
+          includes_return: boolean
+          source: 'auto' | 'manual'
+          status: 'ok' | 'review' | 'excluded'
+          review_reason: string | null
+          miles_overridden: boolean
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          trip_date: string
+          business_id?: string | null
+          event_id?: string | null
+          job_id?: string | null
+          purpose: string
+          destination: string
+          from_label?: string | null
+          miles?: number
+          includes_return?: boolean
+          source?: 'auto' | 'manual'
+          status?: 'ok' | 'review' | 'excluded'
+          review_reason?: string | null
+          miles_overridden?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          trip_date?: string
+          business_id?: string | null
+          event_id?: string | null
+          job_id?: string | null
+          purpose?: string
+          destination?: string
+          from_label?: string | null
+          miles?: number
+          includes_return?: boolean
+          source?: 'auto' | 'manual'
+          status?: 'ok' | 'review' | 'excluded'
+          review_reason?: string | null
+          miles_overridden?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mileage_trips_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mileage_trips_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       accounts_with_balance: {
