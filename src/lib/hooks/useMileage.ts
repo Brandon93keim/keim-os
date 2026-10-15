@@ -10,6 +10,8 @@ import {
   updateTrip,
   deleteTrip,
   syncTripsFromCalendar,
+  listEventsMissingLocation,
+  setEventLocation,
   type MileageTrip,
   type ManualTripValues,
   type TripUpdateValues,
@@ -85,6 +87,25 @@ export function useSyncTrips(onProgress?: (p: SyncProgress) => void) {
       )
     },
     onError: (err: Error) => toast.error(err.message ?? "Sync failed"),
+  })
+}
+
+export function useEventsMissingLocation(from: string, to: string) {
+  return useQuery({
+    queryKey: ["mileage", "missing-location", from, to],
+    queryFn: () => listEventsMissingLocation(from, to),
+  })
+}
+
+export function useSetEventLocation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, location }: { id: string; location: string }) => setEventLocation(id, location),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["mileage", "missing-location"] })
+      qc.invalidateQueries({ queryKey: ["events"] })
+    },
+    onError: (err: Error) => toast.error(err.message ?? "Couldn't save location"),
   })
 }
 

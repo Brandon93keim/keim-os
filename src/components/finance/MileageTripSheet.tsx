@@ -83,6 +83,9 @@ export function MileageTripSheet({ open, onClose, trip }: Props) {
               {trip.review_reason}
             </div>
           )}
+          {trip?.status === "ok" && trip.review_reason && (
+            <p className="text-xs text-muted-foreground">{trip.review_reason}</p>
+          )}
           {trip?.source === "auto" && (
             <p className="text-xs text-muted-foreground">
               From your calendar. Route: {trip.from_label ?? "Home"} → {trip.destination}

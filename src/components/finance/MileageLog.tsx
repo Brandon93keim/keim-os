@@ -20,6 +20,7 @@ import {
   type SyncProgress,
 } from "@/lib/hooks/useMileage"
 import { MileageTripSheet } from "./MileageTripSheet"
+import { MileageMissingLocations } from "./MileageMissingLocations"
 
 function today() {
   return format(new Date(), "yyyy-MM-dd")
@@ -214,6 +215,12 @@ export function MileageLog() {
               Home → stops in calendar order → Home, so stacked jobs aren&apos;t counted as separate round trips.
             </p>
 
+            <MileageMissingLocations
+              from={from}
+              to={to}
+              knownPlaces={[...new Set(trips.map((t) => t.destination))].sort()}
+            />
+
             {/* Trip list */}
             {tripsLoading ? (
               <div className="space-y-2">
@@ -264,7 +271,7 @@ export function MileageLog() {
                               <div className="text-right shrink-0">
                                 <p className="text-sm font-semibold tabular-nums">{fmtMiles(Number(t.miles))}</p>
                                 <p className="text-[10px] text-muted-foreground">
-                                  {t.status === "review" ? "review" : t.status === "excluded" ? "excluded" : t.source === "manual" ? "manual" : t.miles_overridden ? "edited" : "mi"}
+                                  {t.status === "review" ? "review" : t.status === "excluded" ? "excluded" : t.source === "manual" ? "manual" : t.miles_overridden ? "edited" : t.review_reason ? "≈ mi" : "mi"}
                                 </p>
                               </div>
                             </button>
