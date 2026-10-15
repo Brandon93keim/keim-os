@@ -22,6 +22,7 @@ import {
   useUpdateTaxSettings,
 } from "@/lib/hooks/useTaxes"
 import { hasOfficialYear, taxYear } from "@/lib/tax/constants"
+import { homeOffice } from "@/lib/tax/homeOffice"
 import {
   estimateTax,
   federalRequiredAnnual,
@@ -235,8 +236,22 @@ export function TaxPlanner() {
   const calc = useMemo(() => {
     if (!settings || !base) return null
     const frac = year === thisYear ? yearFraction(year, today) : 1
-    const projectedProfit = base.netProfit / frac
-    const profit = basis === "projected" ? projectedProfit : base.netProfit
+    // Home office is an annual deduction; the "so far" view takes the share of the year elapsed.
+    const office = homeOffice({
+      year,
+      officeSqft: Number(settings.home_office_sqft),
+      homeSqft: Number(settings.home_total_sqft),
+      utilitiesAnnual: base.homeUtilitiesYtd / frac,
+      insuranceAnnual: Number(settings.home_insurance_annual),
+      propertyTaxAnnual: Number(settings.property_tax_annual),
+      buildingBasis: Number(settings.home_building_basis),
+      inServiceDate: settings.home_in_service_date,
+      method: settings.home_office_method,
+    })
+    const officeYtd = office.deduction * frac
+    const ytdProfit = Math.max(0, base.netProfit - officeYtd)
+    const projectedProfit = Math.max(0, base.netProfit / frac - office.deduction)
+    const profit = basis === "projected" ? projectedProfit : ytdProfit
     const interest = basis === "projected" ? base.interestIncome / frac : base.interestIncome
     const inputs = {
       year,
@@ -267,6 +282,9 @@ export function TaxPlanner() {
     const laNow = nextIdx >= 0 ? laPlan[nextIdx].shortfall : 0
     return {
       frac,
+      office,
+      officeYtd,
+      ytdProfit,
       projectedProfit,
       profit,
       est,
@@ -486,7 +504,7 @@ export function TaxPlanner() {
                   <Row key={b.businessId} label={b.name} value={formatCurrency(b.net)} />
                 ))}
                 <div className="border-t border-border my-1" />
-                <Row label="Income" value={formatCurrency(base.grossIncome)} muted />
+                <Row label="Gross income" value={formatCurrency(base.grossIncome)} muted />
                 <Row label="Expenses" value={`−${formatCurrency(base.expenses)}`} muted />
                 {base.fuelAddedBack > 0 && (
                   <Row label="Business gas (covered by mileage rate)" value={`+${formatCurrency(base.fuelAddedBack)}`} muted />
@@ -496,7 +514,14 @@ export function TaxPlanner() {
                   value={`−${formatCurrency(base.mileageDeduction)}`}
                   muted
                 />
-                <Row label="Schedule C profit" value={formatCurrency(base.netProfit)} bold />
+                {calc.office.deduction > 0 && (
+                  <Row
+                    label={`Home office (${calc.office.method === "actual" ? "actual" : "simplified"}, share of year)`}
+                    value={`−${formatCurrency(calc.officeYtd)}`}
+                    muted
+                  />
+                )}
+                <Row label="Net profit (what you're taxed on)" value={formatCurrency(calc.ytdProfit)} bold />
                 {basis === "projected" && year === thisYear && (
                   <Row label={`Projected full year (${pct(calc.frac)} of year elapsed)`} value={formatCurrency(calc.projectedProfit)} muted />
                 )}
@@ -511,6 +536,64 @@ export function TaxPlanner() {
                   Golf ({formatCurrency(base.golfNet)}) is left out; it only counts as a business if it&apos;s run for profit.
                 </p>
               )}
+            </Card>
+
+            {/* Home office */}
+            <Card>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Home office</p>
+              <p className="text-[11px] text-muted-foreground mb-3">
+                The space must be used regularly and only for business. Your office is{" "}
+                {Math.round(calc.office.businessPct * 1000) / 10}% of the home.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <NumberField id="ho-sqft" label="Office sq ft" value={Number(settings.home_office_sqft)} onCommit={(v) => updateSettings.mutate({ home_office_sqft: v ?? 0 })} />
+                <NumberField id="ho-home" label="Home sq ft" value={Number(settings.home_total_sqft)} onCommit={(v) => updateSettings.mutate({ home_total_sqft: v ?? 0 })} />
+                <NumberField id="ho-ins" label="Homeowners insurance / yr" value={Number(settings.home_insurance_annual)} onCommit={(v) => updateSettings.mutate({ home_insurance_annual: v ?? 0 })} />
+                <NumberField id="ho-tax" label="Property tax / yr" value={Number(settings.property_tax_annual)} onCommit={(v) => updateSettings.mutate({ property_tax_annual: v ?? 0 })} />
+                <NumberField
+                  id="ho-basis"
+                  label="House cost minus land"
+                  value={Number(settings.home_building_basis)}
+                  hint="For depreciation. Your share of what was paid, excluding land value."
+                  onCommit={(v) => updateSettings.mutate({ home_building_basis: v ?? 0 })}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="ho-date" className="text-xs">Office in use since</Label>
+                  <Input
+                    id="ho-date"
+                    type="date"
+                    defaultValue={settings.home_in_service_date ?? ""}
+                    onBlur={(e) => {
+                      const v = e.target.value || null
+                      if (v !== settings.home_in_service_date) updateSettings.mutate({ home_in_service_date: v })
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="mt-3 space-y-1">
+                <Row label="Utilities (from your bills, full-year pace)" value={formatCurrency(base.homeUtilitiesYtd / calc.frac)} muted />
+                <Row label={`Simplified: ${Math.min(300, Number(settings.home_office_sqft))} sq ft × $5`} value={formatCurrency(calc.office.simplified)} />
+                <Row
+                  label={`Actual: ${Math.round(calc.office.businessPct * 1000) / 10}% of costs${calc.office.depreciation ? " + depreciation" : ""}`}
+                  value={formatCurrency(calc.office.actual)}
+                />
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-1.5">
+                {(["auto", "simplified", "actual"] as const).map((m) => (
+                  <Button
+                    key={m}
+                    size="sm"
+                    variant={settings.home_office_method === m ? "default" : "outline"}
+                    onClick={() => updateSettings.mutate({ home_office_method: m })}
+                  >
+                    {m === "auto" ? "Best" : m === "simplified" ? "Simplified" : "Actual"}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-2">
+                Using {calc.office.method} ({formatCurrency(calc.office.deduction)} for {year}). Simplified needs no records and
+                avoids depreciation recapture when you sell; actual is usually larger once depreciation is included.
+              </p>
             </Card>
 
             {/* Settings */}

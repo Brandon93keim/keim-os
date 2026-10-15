@@ -175,6 +175,8 @@ export type TaxBase = {
   golfNet: number
   interestIncome: number
   rothContributed: number
+  /** Whole-home electric/gas/water paid this year (personal "Internet & Utilities"). */
+  homeUtilitiesYtd: number
   milesNeedingReview: number
 }
 
@@ -214,6 +216,7 @@ export async function getTaxBase(year: number, to: string): Promise<TaxBase> {
   let golfNet = 0
   let interestIncome = 0
   let rothContributed = 0
+  let homeUtilitiesYtd = 0
 
   for (const t of txs ?? []) {
     const amt = Number(t.amount)
@@ -223,6 +226,7 @@ export async function getTaxBase(year: number, to: string): Promise<TaxBase> {
     const biz = t.business_id ? getBusinessById(t.business_id) : null
     if (!biz) {
       if (t.type === "income" && cat === "Interest Income") interestIncome += amt
+      if (t.type === "expense" && cat === "Internet & Utilities") homeUtilitiesYtd += amt
       continue
     }
     if (biz.pnl_group === "golf") {
@@ -264,6 +268,7 @@ export async function getTaxBase(year: number, to: string): Promise<TaxBase> {
     golfNet,
     interestIncome,
     rothContributed,
+    homeUtilitiesYtd,
     milesNeedingReview: (trips ?? []).filter((t) => t.status === "review").reduce((s, t) => s + Number(t.miles), 0),
   }
 }
